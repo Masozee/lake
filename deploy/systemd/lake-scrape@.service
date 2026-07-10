@@ -1,0 +1,62 @@
+# Templated unit. %i is the source_id.
+#   sudo systemctl start lake-scrape@bps_inflation.service
+#   journalctl -u lake-scrape@bps_inflation.service -f
+#
+# Type=oneshot with NO Restart=. Retrying a scrape at the *process* level is an
+# infinite scrape loop against someone else's server. Retry belongs at the job
+# level: lake-retry.timer, which creates a new run row with attempt=N+1.
+
+[Unit]
+Description=lake scraper: %i
+Documentation=file:/opt/lake/docs/runbook.md
+After=network-online.target mnt-nas.mount postgresql.service
+Wants=network-online.target
+# Requires= (not Wants=) is load-bearing: if the NAS is down the scraper must
+# not start. Otherwise it happily writes to an empty local directory and fills
+# the NUC's root disk with data nobody will ever find.
+Requires=mnt-nas.mount
+OnFailure=lake-alert@%i.service
+
+[Service]
+Type=oneshot
+User=lake
+Group=lake
+WorkingDirectory=/opt/lake
+EnvironmentFile=/etc/lake/lake.env
+ExecStart=/opt/lake/.venv/bin/lake scrape %i --trigger schedule
+TimeoutStartSec=3600
+
+# Be a polite neighbour: Postgres and the dashboard share this NUC.
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=4G
+
+# --- sandboxing --------------------------------------------------------------
+# Scrapers parse untrusted bytes with libraries that have a history of CVEs
+# (PDF, Excel, XML). This is not optional hardening; it is the reason a parser
+# RCE stays contained.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+CapabilityBoundingSet=
+
+# ProtectSystem=strict makes everything read-only except these.
+ReadWritePaths=/mnt/nas/lake /var/log/lake /var/lib/lake
+
+[Install]
+WantedBy=multi-user.target

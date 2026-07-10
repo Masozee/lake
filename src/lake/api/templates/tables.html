@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+
+{% block full_bleed %}
+<main>
+  <section class="hero dotgrid">
+    <div class="wrap" style="padding:0">
+      <div class="hero-grid">
+        <div>
+          <p class="eyebrow">Open data lake</p>
+          <h1 class="hero-title">Public data, collected on a schedule and queryable in the browser.</h1>
+          <p class="hero-lead">
+            Scrapers land immutable raw bytes on a NAS, every run is recorded in a Postgres
+            catalog, and typed Parquet is rebuilt from it. What you query here is a read-only
+            replica of that Parquet — it cannot be changed from this page.
+          </p>
+          <div class="hero-actions">
+            <a href="/datasets" class="btn" data-variant="primary" style="min-height:48px">Browse datasets</a>
+            <a href="/query" class="btn" data-variant="ghost" style="min-height:48px">Query the data</a>
+          </div>
+        </div>
+
+        {% if series %}
+        {# Not decoration: this is the real gdp_annual series for country_iso3='WLD'. #}
+        <figure style="margin:0" data-reveal>
+          <svg class="chart" viewBox="-2 -8 {{ series.width + 4 }} {{ series.height + 16 }}"
+               role="img" aria-label="World GDP, {{ series.first_year }} to {{ series.last_year }}"
+               preserveAspectRatio="none" style="height:12rem">
+            <line class="chart-frame" x1="0" y1="{{ series.height }}"
+                  x2="{{ series.width }}" y2="{{ series.height }}"/>
+            <path class="chart-area" d="{{ series.area }}"/>
+            <path class="chart-line" d="{{ series.line }}"/>
+            <circle class="chart-cap" cx="{{ series.width }}" cy="0" r="4"/>
+          </svg>
+          <figcaption class="chart-caption">
+            World GDP · {{ series.first_year }}–{{ series.last_year }} ·
+            ${{ "%.1f"|format(series.last_value / 1e12) }}T in {{ series.last_year }}
+          </figcaption>
+        </figure>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  {# Real numbers, read from the serving replica. Zeroes mean "not built yet".
+     data-count drives the count-up; the text is already the final value, so with
+     JS off the correct number is simply there. #}
+  {% set active = sources | selectattr("enabled") | list | length %}
+  <section class="stat-band">
+    <div class="stat">
+      <div class="stat-value" data-count="{{ stats.total_rows }}">{{ "{:,}".format(stats.total_rows) }}</div>
+      <div class="stat-label">Rows served</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" data-count="{{ stats.table_count }}">{{ stats.table_count }}</div>
+      <div class="stat-label">{{ "Dataset" if stats.table_count == 1 else "Datasets" }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" data-count="{{ active }}">{{ active }}</div>
+      <div class="stat-label">Active sources</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">
+        {%- if stats.built_at -%}
+          {{ stats.built_at.strftime("%d %b") }}
+        {%- else -%}—{%- endif -%}
+      </div>
+      <div class="stat-label">
+        {%- if stats.built_at -%}
+          Last built {{ stats.built_at.strftime("%H:%M UTC") }}
+        {%- else -%}
+          Replica not built
+        {%- endif -%}
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== How it works ==================== -->
+  <section class="section" id="how">
+    <div class="wrap" style="padding:0">
+      <h2 class="section-head" data-reveal>How it works</h2>
+      <p class="section-lead">
+        Four stages, each one idempotent. A run that fails halfway leaves nothing
+        half-written: raw bytes are committed atomically, and Parquet is rebuilt
+        rather than appended to.
+      </p>
+
+      {% include "_pipeline.html" %}
+
+      <p class="muted mt-3" style="font-size:0.875rem">
+        <a href="/about">Read more about the design →</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- ==================== Latest data ==================== -->
+  <section class="section section-alt" id="data">
+    <div class="wrap" style="padding:0">
+      <h2 class="section-head" data-reveal>Latest data</h2>
+      <p class="section-lead">
+        {% if stats.built_at %}
+          The replica currently being served was published
+          {{ stats.built_at.strftime("%-d %B %Y at %H:%M UTC") }}. Pick a dataset to
+          browse its columns, profile its values, or export it.
+        {% else %}
+          No serving replica has been built yet. Once it is, published datasets appear here.
+        {% endif %}
+      </p>
+
+      {% if tables %}
+      <div class="grid-cards mb-4" data-reveal>
+        {% for t in tables %}
+        <a href="/table/{{ t.name }}" class="tile reset">
+          <h3 class="tile-title mono">{{ t.name }}</h3>
+          <p class="tile-meta">
+            {{ "{:,}".format(t.row_count) }} rows · {{ t.columns }} columns
+          </p>
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="tile" style="border:1px solid var(--border)">
+        <h3 class="tile-title">No datasets yet</h3>
+        <p class="tile-meta mb-4">Build the serving replica, then refresh this page.</p>
+        <pre class="code"><code>uv run lake serve build</code></pre>
+      </div>
+      {% endif %}
+
+      {% if sources %}
+      <h3 class="section-title">Where it comes from</h3>
+      <div class="grid-cards" data-reveal>
+        {% for s in sources %}
+        <div class="tile">
+          <h4 class="tile-title" style="font-size:1rem">{{ s.display_name }}</h4>
+          <p class="tile-meta mono" style="font-size:0.75rem">{{ s.source_id }}</p>
+          <p class="tile-meta mt-3">
+            <span class="pill {{ 'pill-live' if s.enabled else 'pill-off' }}">
+              {{ "Collecting " ~ s.schedule if s.enabled else "Paused" }}
+            </span>
+          </p>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <p class="muted mt-3" style="font-size:0.875rem">
+        <a href="/datasets">See every dataset and its schema →</a>
+      </p>
+    </div>
+  </section>
+
+  <!-- ==================== Contact ==================== -->
+  <section class="cta" id="contact">
+    <div class="cta-inner">
+      <div>
+        <h2 class="cta-title">Need a dataset, or found something wrong?</h2>
+        <p class="cta-lead">
+          Requests for new sources, corrections to existing data, and questions about
+          how a number was derived are all welcome.
+        </p>
+      </div>
+      <a class="btn-on-blue" href="/contact">Get in touch</a>
+    </div>
+  </section>
+</main>
+{% endblock %}

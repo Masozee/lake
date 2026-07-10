@@ -1,0 +1,11 @@
+[Unit]
+Description=lake: hourly freshness check
+
+[Timer]
+OnCalendar=hourly
+RandomizedDelaySec=300
+Persistent=false
+Unit=lake-freshness.service
+
+[Install]
+WantedBy=timers.target

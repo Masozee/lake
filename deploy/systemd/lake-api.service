@@ -1,0 +1,52 @@
+# The read-only serving API.
+#
+# SECURITY, in two layers that both hold independently:
+#   1. The DuckDB serving connection is opened read_only=True with
+#      enable_external_access=False. It physically cannot write, cannot read a
+#      file off disk, cannot ATTACH or INSTALL, and cannot re-enable any of that
+#      at runtime. See src/lake/api/engine.py.
+#   2. A parser-level SQL guard rejects anything but a single SELECT/EXPLAIN
+#      before it reaches the engine. See src/lake/api/sql_guard.py.
+#
+# The API itself has no authentication. Bind it to localhost and reach it over
+# Tailscale or an authenticating reverse proxy — exactly like the dashboard.
+# A long-running service, so Restart= is correct here.
+
+[Unit]
+Description=lake: read-only serving API
+After=network-online.target mnt-nas.mount
+Wants=network-online.target
+# The API can start without a replica (it reports no_replica on /health), so the
+# mount is Wanted, not Required — but keep it ordered after the mount and the
+# replica build so a fresh boot serves data promptly.
+After=lake-serve-build.service
+
+[Service]
+Type=exec
+User=lake
+Group=lake
+WorkingDirectory=/opt/lake
+EnvironmentFile=/etc/lake/lake.env
+# LAKE_ANTHROPIC_API_KEY (optional, for AI) lives here, root:lake 0640.
+ExecStart=/opt/lake/.venv/bin/lake serve run --host 127.0.0.1 --port 8000
+
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+Nice=5
+MemoryMax=2G
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+# The API reads the replica and processed/. It never writes the lake — the one
+# writable path is its own log.
+ReadOnlyPaths=/mnt/nas/lake /var/lib/lake/serving
+ReadWritePaths=/var/log/lake /var/lib/lake
+
+[Install]
+WantedBy=multi-user.target

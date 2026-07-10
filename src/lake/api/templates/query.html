@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Query{% endblock %}
+{% block content %}
+<h1 class="page-title">Query</h1>
+<p class="page-sub">
+  Read-only SQL over the lake. Only SELECT is allowed — the data cannot be changed.
+  Tables live in the <code class="mono">lake</code> schema, e.g. <code class="mono">lake.gdp_annual</code>.
+</p>
+
+<div class="card mb-4">
+  <section>
+    <form hx-post="/query/run" hx-target="#result" hx-swap="innerHTML" hx-indicator="#running">
+      <label class="label" for="sql">SQL query</label>
+      <textarea id="sql" name="sql" class="textarea mono" rows="5" spellcheck="false"
+        placeholder="SELECT ...">{{ sql }}</textarea>
+      <div class="hstack mt-3">
+        <button type="submit" class="btn">Run</button>
+        <span id="running" class="htmx-indicator muted">running…</span>
+        <span class="muted spacer" style="font-size:.8rem">⌘/Ctrl + Enter</span>
+      </div>
+    </form>
+  </section>
+</div>
+
+<div id="result">
+  {% if result %}{% include "_query_result.html" %}{% endif %}
+</div>
+
+<script>
+  document.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      const f = document.querySelector('#result')?.closest('body')?.querySelector('form[hx-post]');
+      if (f) htmx.trigger(f, 'submit');
+    }
+  });
+</script>
+{% endblock %}

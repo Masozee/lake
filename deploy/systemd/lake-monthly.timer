@@ -1,0 +1,13 @@
+[Unit]
+Description=lake: monthly scrapers
+
+[Timer]
+# The 3rd, not the 1st. Statistical agencies publish late, and a scraper that
+# runs before the data exists just records a failure every month.
+OnCalendar=*-*-03 07:00:00
+RandomizedDelaySec=3600
+Persistent=true
+Unit=lake-dispatch@monthly.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Datasets{% endblock %}
+
+{% macro chip(label, param, value, current) %}
+  {%- set active = current == value -%}
+  {%- set params = [] -%}
+  {%- if q %}{% set _ = params.append('q=' ~ (q | urlencode)) %}{% endif -%}
+  {%- if param != 'kind' and kind %}{% set _ = params.append('kind=' ~ kind) %}{% endif -%}
+  {%- if param != 'status' and status %}{% set _ = params.append('status=' ~ status) %}{% endif -%}
+  {%- if value %}{% set _ = params.append(param ~ '=' ~ value) %}{% endif -%}
+  <a class="chip {{ 'chip-on' if active }}"
+     href="/datasets{% if params %}?{{ params | join('&') }}{% endif %}"
+     {% if active %}aria-current="true"{% endif %}>{{ label }}</a>
+{% endmacro %}
+
+{% block full_bleed %}
+<main>
+  <section class="hero dotgrid">
+    <div class="wrap" style="padding:0">
+      <p class="eyebrow">Datasets</p>
+      <h1 class="hero-title">Everything the lake collects.</h1>
+      <p class="hero-lead">
+        Each card is one source we collect on a schedule. Some are already published as
+        typed, queryable datasets; the rest are archived as raw bytes, waiting for a
+        transform. Everything here is read-only.
+      </p>
+    </div>
+  </section>
+
+  <section class="stat-band">
+    <div class="stat">
+      <div class="stat-value" data-count="{{ total }}">{{ total }}</div>
+      <div class="stat-label">{{ "Dataset" if total == 1 else "Datasets" }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" data-count="{{ stats.total_rows }}">{{ "{:,}".format(stats.total_rows) }}</div>
+      <div class="stat-label">Rows queryable</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" data-count="{{ cards | selectattr('queryable') | list | length }}">{{ cards | selectattr('queryable') | list | length }}</div>
+      <div class="stat-label">Published</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">
+        {%- if stats.built_at -%}{{ stats.built_at.strftime("%d %b") }}{%- else -%}—{%- endif -%}
+      </div>
+      <div class="stat-label">
+        {%- if stats.built_at -%}Last built {{ stats.built_at.strftime("%H:%M UTC") }}
+        {%- else -%}Replica not built{%- endif -%}
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="browse">
+    <div class="wrap" style="padding:0">
+
+      {# A real GET form: with JS off it navigates and the server filters just the
+         same. htmx only upgrades it to swap the grid in place as you type. #}
+      <form class="finder" action="/datasets" method="get" role="search"
+            hx-get="/datasets/cards" hx-target="#cards" hx-swap="innerHTML"
+            hx-trigger="submit, input from:#q delay:200ms, change from:#kind, change from:#status"
+            hx-push-url="true" hx-indicator="#searching">
+        <div class="field finder-search">
+          <label for="q">Search datasets</label>
+          <input id="q" name="q" type="search" value="{{ q }}" autocomplete="off"
+                 placeholder="Try “inflation”, “GDP”, or “census”">
+        </div>
+
+        <div class="field">
+          <label for="kind">Source type</label>
+          <select id="kind" name="kind">
+            <option value="">All types</option>
+            {% for k in kinds %}
+            <option value="{{ k }}" {{ 'selected' if kind == k }}>{{ k }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="status">Status</label>
+          <select id="status" name="status">
+            <option value="">Any status</option>
+            <option value="queryable" {{ 'selected' if status == 'queryable' }}>Queryable</option>
+            <option value="raw" {{ 'selected' if status == 'raw' }}>Raw only</option>
+            <option value="paused" {{ 'selected' if status == 'paused' }}>Paused</option>
+          </select>
+        </div>
+
+        {# The submit button is what makes this work with JavaScript disabled. #}
+        <button type="submit" class="btn" data-variant="primary">Search</button>
+        <span id="searching" class="htmx-indicator muted">searching…</span>
+      </form>
+
+      <div class="chips">
+        {{ chip('All', 'status', '', status) }}
+        {{ chip('Queryable', 'status', 'queryable', status) }}
+        {{ chip('Raw only', 'status', 'raw', status) }}
+        {{ chip('Paused', 'status', 'paused', status) }}
+        <span class="chip-sep" aria-hidden="true"></span>
+        {{ chip('All types', 'kind', '', kind) }}
+        {% for k in kinds %}
+          {{ chip(k, 'kind', k, kind) }}
+        {% endfor %}
+      </div>
+
+      <div id="cards" data-reveal>
+        {% include "_dataset_cards.html" %}
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="cta-inner">
+      <div>
+        <h2 class="cta-title">Want a dataset that isn't here?</h2>
+        <p class="cta-lead">
+          Tell us where the data lives and how often it changes. Adding a source is a YAML
+          edit plus a small scraper.
+        </p>
+      </div>
+      <a class="btn-on-blue" href="/contact">Request a source</a>
+    </div>
+  </section>
+</main>
+{% endblock %}

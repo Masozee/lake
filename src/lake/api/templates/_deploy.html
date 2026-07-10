@@ -1,0 +1,39 @@
+{# Commands are verbatim from docs/deployment.md and docs/api.md. If those change,
+   change these. Shared by /about (and previously the dashboard). #}
+<div class="code-group" data-reveal>
+  <div>
+    <p class="code-caption">Locally</p>
+<pre class="code"><code><span class="c"># install and set up the catalog</span>
+uv venv &amp;&amp; uv pip install -e <span class="p">'.[dev]'</span>
+cp .env.example .env
+createdb lake_meta
+uv run alembic upgrade head
+uv run lake sync-sources
+uv run lake doctor
+
+<span class="c"># build the replica, then serve it</span>
+uv run lake serve build
+uv run lake serve run</code></pre>
+  </div>
+  <div>
+    <p class="code-caption">On a server</p>
+<pre class="code"><code><span class="c"># install the systemd units</span>
+sudo make deploy
+
+<span class="c"># mount the NAS, migrate, verify</span>
+sudo systemctl enable --now mnt-nas.mount
+sudo -u lake .venv/bin/alembic upgrade head
+sudo -u lake .venv/bin/lake sync-sources
+sudo -u lake .venv/bin/lake doctor
+
+<span class="c"># start the timers and the API</span>
+sudo make enable
+sudo systemctl enable --now lake-api.service</code></pre>
+  </div>
+</div>
+
+<p class="muted mt-3" style="font-size:0.875rem">
+  The API binds to localhost and carries no authentication of its own — put it
+  behind a proxy or a private network. <code class="mono">lake-serve-build.timer</code>
+  rebuilds the replica hourly.
+</p>

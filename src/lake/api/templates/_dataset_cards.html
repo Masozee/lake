@@ -1,0 +1,74 @@
+{# The card grid. Rendered inside the full page AND swapped in by htmx on every
+   search keystroke, so the two can never drift apart. #}
+<p class="result-count muted" aria-live="polite">
+  {% if cards | length == total %}
+    {{ total }} {{ "dataset" if total == 1 else "datasets" }}
+  {% else %}
+    {{ cards | length }} of {{ total }} {{ "dataset" if total == 1 else "datasets" }}
+  {% endif %}
+</p>
+
+{% if cards %}
+<div class="card-grid">
+  {% for c in cards %}
+  <article class="dcard">
+    <header>
+      <h3 class="dcard-title mono">{{ c.title }}</h3>
+      <p class="dcard-source">
+        {%- if c.source_name -%}{{ c.source_name }}{%- else -%}Source not in registry{%- endif -%}
+      </p>
+    </header>
+
+    <p class="dcard-desc">
+      {%- if c.description -%}
+        {{ c.description }}
+      {%- else -%}
+        <span class="muted">No description yet.</span>
+      {%- endif -%}
+    </p>
+
+    <div class="labels">
+      {% for label in c.labels %}
+      <span class="label label-{{ label | replace(' ', '-') }}">{{ label }}</span>
+      {% endfor %}
+    </div>
+
+    <footer class="dcard-foot">
+      <div class="dcard-meta">
+        {%- if c.last_collected -%}
+          <span class="muted">Updated</span>
+          <time datetime="{{ c.last_collected.isoformat() }}">{{ c.last_collected.strftime("%-d %b %Y") }}</time>
+        {%- else -%}
+          <span class="muted">Never collected</span>
+        {%- endif -%}
+        {%- if c.row_count is not none -%}
+          <span class="dot">·</span><span>{{ "{:,}".format(c.row_count) }} rows</span>
+        {%- endif -%}
+      </div>
+
+      {% if c.queryable %}
+      <div class="hstack" style="gap:0.5rem">
+        <a class="btn" data-variant="primary" style="min-height:36px"
+           href="/query?sql={{ ('SELECT * FROM lake.' ~ c.dataset ~ ' LIMIT 100')|urlencode }}">Query</a>
+        <a class="btn" data-variant="ghost" style="min-height:36px"
+           href="/table/{{ c.dataset }}">Details</a>
+      </div>
+      {% else %}
+      <span class="muted dcard-note">Collected, not yet queryable</span>
+      {% endif %}
+    </footer>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="tile" style="border:1px solid var(--border)">
+  <h3 class="tile-title">No datasets match</h3>
+  <p class="tile-meta">
+    Nothing here matches
+    {%- if q %} “{{ q }}”{% endif %}
+    {%- if kind %} in {{ kind }} sources{% endif %}
+    {%- if status %} with status {{ status }}{% endif %}.
+    Try a broader search, or <a href="/datasets">clear the filters</a>.
+  </p>
+</div>
+{% endif %}

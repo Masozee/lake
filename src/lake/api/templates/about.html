@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}About{% endblock %}
+
+{% block full_bleed %}
+<main>
+  <section class="hero dotgrid">
+    <div class="wrap" style="padding:0">
+      <p class="eyebrow">About</p>
+      <h1 class="hero-title">Built to still be debuggable at 3am, two years from now.</h1>
+      <p class="hero-lead">
+        lake is a small, durable data lake for one server and one NAS. It collects public
+        data on a schedule, keeps every raw byte exactly as it arrived, and rebuilds a
+        typed, queryable copy from it. Nothing here is clever. That is the point.
+      </p>
+    </div>
+  </section>
+
+  <!-- ==================== Principles ==================== -->
+  <section class="section">
+    <div class="wrap" style="padding:0">
+      <h2 class="section-head" data-reveal>What it guarantees</h2>
+      <p class="section-lead">
+        Four properties the system holds onto, because each one is what you actually want
+        at 3am when something has gone wrong.
+      </p>
+
+      <div class="grid-cards" data-reveal>
+        <div class="tile">
+          <h3 class="tile-title" style="font-size:1.125rem">Raw data is immutable</h3>
+          <p class="tile-meta">
+            Bytes land with an atomic rename and are then read-only. A later run supersedes
+            an earlier one; it never edits it. You can always go back to what the source
+            actually served.
+          </p>
+        </div>
+        <div class="tile">
+          <h3 class="tile-title" style="font-size:1.125rem">Every run is recorded</h3>
+          <p class="tile-meta">
+            Runs, files, and checksums go into a Postgres catalog. That is what lets the
+            system tell you whether a source went quiet or a scraper broke — two very
+            different problems that look identical from the outside.
+          </p>
+        </div>
+        <div class="tile">
+          <h3 class="tile-title" style="font-size:1.125rem">Transforms are idempotent</h3>
+          <p class="tile-meta">
+            Parquet partitions are rebuilt, never appended to. Run a transform twice and you
+            get the same answer, so a half-finished job is safe to simply run again.
+          </p>
+        </div>
+        <div class="tile">
+          <h3 class="tile-title" style="font-size:1.125rem">Serving is read-only</h3>
+          <p class="tile-meta">
+            The DuckDB connection behind this website is opened read-only with external
+            file access disabled. The guarantee is structural, not a promise in a comment.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== Pipeline ==================== -->
+  <section class="section section-alt" id="pipeline">
+    <div class="wrap" style="padding:0">
+      <h2 class="section-head" data-reveal>The pipeline</h2>
+      <p class="section-lead">
+        Four stages, each one idempotent. A run that fails halfway leaves nothing
+        half-written.
+      </p>
+      {% include "_pipeline.html" %}
+    </div>
+  </section>
+
+  <!-- ==================== Sources ==================== -->
+  {% if sources %}
+  <section class="section">
+    <div class="wrap" style="padding:0">
+      <h2 class="section-head" data-reveal>Sources</h2>
+      <p class="section-lead">
+        Adding a source is an edit to one YAML file plus a package that knows how to fetch
+        and parse it. Nothing else in the system changes — no dispatch table, no scheduler
+        edit.
+      </p>
+
+      <div class="table-wrap" data-reveal>
+        <table>
+          <thead>
+            <tr>
+              <th>Source</th><th>Identifier</th><th>Kind</th>
+              <th>Schedule</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in sources %}
+            <tr>
+              <td>{{ s.display_name }}</td>
+              <td class="mono" style="font-size:0.8125rem">{{ s.source_id }}</td>
+              <td>{{ s.kind }}</td>
+              <td>{{ s.schedule }}</td>
+              <td>
+                <span class="pill {{ 'pill-live' if s.enabled else 'pill-off' }}">
+                  {{ "Active" if s.enabled else "Paused" }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- ==================== Deploy ==================== -->
+  <section class="section section-alt" id="deploy">
+    <div class="wrap" style="padding:0">
+      <h2 class="section-head" data-reveal>Run your own</h2>
+      <p class="section-lead">
+        It fits on one small server and one NAS. There is no Docker image and no CI
+        pipeline — deployment is a virtualenv and systemd timers, on purpose.
+      </p>
+      {% include "_deploy.html" %}
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="cta-inner">
+      <div>
+        <h2 class="cta-title">Questions about the data?</h2>
+        <p class="cta-lead">
+          How a number was derived, why a source is paused, what a column means — all fair
+          game.
+        </p>
+      </div>
+      <a class="btn-on-blue" href="/contact">Contact us</a>
+    </div>
+  </section>
+</main>
+{% endblock %}

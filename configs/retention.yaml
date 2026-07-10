@@ -1,0 +1,22 @@
+# Retention policy. `lake retention` is a dry run unless you pass --apply.
+#
+# Deletion is soft in the catalog first (files.deleted_at), then the bytes are
+# unlinked. You can always answer "what did we once hold?" after the data is gone.
+
+defaults:
+  staging_hours: 24         # abandoned staging dirs on the NUC's SSD
+  quarantine_days: 90       # keep failures long enough to actually investigate
+  raw_days: 1825            # 5 years
+  archive_after_days: 365   # tar.zst per source-month once cold
+  processed_days: null      # null = keep forever. Parquet is small; keep it.
+
+sources:
+  gov_news:
+    raw_days: 3650          # 10 year legal hold
+
+  worldbank_gdp:
+    archive_after_days: 180 # JSON compresses ~10x; archive aggressively
+
+  census_full:
+    archive_after_days: 730
+    raw_days: null          # null = never delete. The source may not be reproducible.

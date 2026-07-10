@@ -1,0 +1,50 @@
+[
+  {
+    "page": 1,
+    "pages": 1,
+    "per_page": 20000,
+    "total": 4
+  },
+  [
+    {
+      "indicator": { "id": "NY.GDP.MKTP.CD", "value": "GDP (current US$)" },
+      "country": { "id": "ID", "value": "Indonesia" },
+      "countryiso3code": "IDN",
+      "date": "2024",
+      "value": 1371171000000.0,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+    },
+    {
+      "indicator": { "id": "NY.GDP.MKTP.CD", "value": "GDP (current US$)" },
+      "country": { "id": "ID", "value": "Indonesia" },
+      "countryiso3code": "IDN",
+      "date": "2023",
+      "value": null,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+    },
+    {
+      "indicator": { "id": "NY.GDP.MKTP.CD", "value": "GDP (current US$)" },
+      "country": { "id": "US", "value": "United States" },
+      "countryiso3code": "USA",
+      "date": "2024",
+      "value": 29184890000000.0,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+    },
+    {
+      "indicator": { "id": "NY.GDP.MKTP.CD", "value": "GDP (current US$)" },
+      "country": { "id": "1W", "value": "World" },
+      "countryiso3code": "",
+      "date": "2024",
+      "value": 110000000000000.0,
+      "unit": "",
+      "obs_status": "",
+      "decimal": 0
+    }
+  ]
+]

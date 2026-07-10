@@ -1,0 +1,390 @@
+"""Schema discovery for humans and for the AI.
+
+Everything here goes through `information_schema`, never `PRAGMA`. That is not a
+style choice: `PRAGMA database_list` returns the absolute on-disk path of the
+database file, and it classifies as a SELECT to DuckDB's parser. Same for the
+`pragma_*` and `duckdb_*` table functions. `information_schema` leaks nothing.
+
+An AI agent gets exactly what it needs to write a correct query — table names,
+column names, types, row counts, and a sample of values — and nothing about the
+machine the data sits on.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+
+from lake.api.engine import SCHEMA, read_cursor, replica_path, scalar
+from lake.settings import get_settings
+
+#: Sample rows shown per table. Enough for an AI to infer value shapes; small
+#: enough that a wide table does not blow up the context window.
+SAMPLE_ROWS = 5
+
+#: Distinct values listed for a low-cardinality column, so an AI can filter on
+#: real values instead of guessing at them.
+MAX_DISTINCT = 20
+DISTINCT_THRESHOLD = 50
+
+
+@dataclass(frozen=True, slots=True)
+class Column:
+    name: str
+    type: str
+    nullable: bool
+
+
+@dataclass(frozen=True, slots=True)
+class Table:
+    name: str
+    columns: list[Column]
+    row_count: int
+
+
+def list_tables() -> list[str]:
+    with read_cursor(timeout=5) as cur:
+        rows = cur.execute(
+            """
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = ?
+            ORDER BY table_name
+            """,
+            [SCHEMA],
+        ).fetchall()
+    return [r[0] for r in rows]
+
+
+def _assert_known_table(name: str) -> str:
+    """Resolve a caller-supplied name against the real catalog.
+
+    Never interpolate a caller's string into SQL. We look it up, and use the
+    catalog's own copy of the name — so an injected identifier cannot survive
+    the round trip even if quoting were somehow bypassed.
+    """
+    for known in list_tables():
+        if known == name:
+            return known
+    raise KeyError(f"unknown table {name!r}")
+
+
+def describe_table(name: str) -> Table:
+    table = _assert_known_table(name)
+
+    with read_cursor(timeout=5) as cur:
+        columns = cur.execute(
+            """
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns
+            WHERE table_schema = ? AND table_name = ?
+            ORDER BY ordinal_position
+            """,
+            [SCHEMA, table],
+        ).fetchall()
+        row_count = scalar(cur.execute(f'SELECT count(*) FROM {SCHEMA}."{table}"'))
+
+    return Table(
+        name=table,
+        columns=[Column(name=c, type=t, nullable=(n == "YES")) for c, t, n in columns],
+        row_count=row_count,
+    )
+
+
+def sample_table(name: str, limit: int = SAMPLE_ROWS) -> dict[str, Any]:
+    table = _assert_known_table(name)
+    limit = max(1, min(limit, 100))
+
+    with read_cursor(timeout=10) as cur:
+        result = cur.execute(f'SELECT * FROM {SCHEMA}."{table}" LIMIT {limit}')
+        columns = [d[0] for d in (result.description or [])]
+        rows = result.fetchall()
+
+    return {"table": table, "columns": columns, "rows": [list(r) for r in rows]}
+
+
+def column_profile(name: str) -> list[dict[str, Any]]:
+    """Per-column statistics, via SUMMARIZE. Works on a read-only connection.
+
+    For low-cardinality columns we also list the distinct values, because an AI
+    that can see `region IN ('Java','Sumatra')` writes a correct filter, and one
+    that cannot writes `region = 'java'` and gets zero rows.
+    """
+    table = _assert_known_table(name)
+
+    with read_cursor(timeout=30) as cur:
+        result = cur.execute(f'SUMMARIZE {SCHEMA}."{table}"')
+        columns = [d[0] for d in (result.description or [])]
+        summary = [dict(zip(columns, row, strict=True)) for row in result.fetchall()]
+
+        for entry in summary:
+            column = entry.get("column_name")
+            approx = entry.get("approx_unique")
+            if not column or approx is None or approx > DISTINCT_THRESHOLD:
+                continue
+            values = cur.execute(
+                f'SELECT DISTINCT "{column}" FROM {SCHEMA}."{table}" '
+                f'WHERE "{column}" IS NOT NULL ORDER BY 1 LIMIT {MAX_DISTINCT}'
+            ).fetchall()
+            entry["distinct_values"] = [v[0] for v in values]
+
+    return summary
+
+
+def lake_stats() -> dict[str, Any]:
+    """Lake-wide totals for the landing page.
+
+    Read from the serving replica alone — no Postgres — so the public page keeps
+    rendering when the catalog database is down. `built_at` is the replica file's
+    mtime: `build_replica` swaps a freshly-written file into place, so its mtime
+    is the moment the data currently being served was published.
+    """
+    tables = [describe_table(name) for name in list_tables()]
+    built_at: datetime | None = None
+    path = replica_path()
+    if path.exists():
+        built_at = datetime.fromtimestamp(path.stat().st_mtime, tz=UTC)
+
+    return {
+        "table_count": len(tables),
+        "total_rows": sum(t.row_count for t in tables),
+        "total_columns": sum(len(t.columns) for t in tables),
+        "built_at": built_at,
+        "tables": [
+            {"name": t.name, "row_count": t.row_count, "columns": len(t.columns)} for t in tables
+        ],
+    }
+
+
+#: Which source each published dataset is built from.
+#:
+#: The authority is `lake.transform.runner.TRANSFORMS`, but importing that here
+#: would pull `MetadataRepo` — and therefore Postgres — into a serving path that
+#: is meant to keep answering when the catalog database is down. A dataset whose
+#: source is not listed here simply shows no provenance rather than a wrong one.
+DATASET_SOURCE = {
+    "gdp_annual": "worldbank_gdp",
+    "seki_indicators": "seki",
+}
+
+
+_MANIFEST_NAME = "_MANIFEST.json"
+
+
+def last_collected(source_id: str) -> datetime | None:
+    """When this source last landed a complete run, from the raw archive.
+
+    Read off the filesystem rather than Postgres, so the public page keeps
+    answering when the catalog database is down. A run directory only counts if
+    it holds a manifest saying `status: "complete"` — a half-written run is not
+    an update. Returns None when the source has never collected anything.
+    """
+    try:
+        base = get_settings().raw_root / f"source={source_id}"
+    except Exception:
+        return None
+    if not base.is_dir():
+        return None
+
+    newest: datetime | None = None
+    for manifest in base.rglob(_MANIFEST_NAME):
+        try:
+            doc = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue  # an unreadable manifest is not an update either
+        if doc.get("status") != "complete":
+            continue
+        stamp = doc.get("started_at")
+        if not stamp:
+            continue
+        try:
+            when = datetime.fromisoformat(stamp)
+        except ValueError:
+            continue
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=UTC)
+        if newest is None or when > newest:
+            newest = when
+    return newest
+
+
+def dataset_cards(sources: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """One card per thing the lake collects, published or not.
+
+    A single list, because a reader searching for "inflation" should find it
+    whether or not a transform exists yet. The `queryable` flag is what keeps the
+    page honest: only a published dataset offers a query link, and the card says
+    so plainly rather than implying data that isn't there.
+    """
+    try:
+        tables = {t.name: t for t in (describe_table(n) for n in list_tables())}
+    except FileNotFoundError:
+        tables = {}
+
+    dataset_for = {src: ds for ds, src in DATASET_SOURCE.items()}
+    cards: list[dict[str, Any]] = []
+
+    for source in sources or []:
+        source_id = source["source_id"]
+        name = dataset_for.get(source_id)
+        table = tables.get(name) if name else None
+
+        labels = [source.get("kind", "—"), source.get("schedule", "—")]
+        labels.append("queryable" if table else "raw only")
+        if not source.get("enabled", False):
+            labels.append("paused")
+
+        cards.append(
+            {
+                "title": name or source_id,
+                "dataset": name,
+                "queryable": table is not None,
+                "source_id": source_id,
+                "source_name": source.get("display_name", source_id),
+                "description": source.get("description"),
+                "kind": source.get("kind"),
+                "schedule": source.get("schedule"),
+                "enabled": bool(source.get("enabled", False)),
+                "labels": labels,
+                "last_collected": last_collected(source_id),
+                "row_count": table.row_count if table else None,
+                "column_count": len(table.columns) if table else None,
+            }
+        )
+
+    # A published dataset whose source is missing from the registry still belongs
+    # on the page — otherwise it would be queryable but invisible.
+    listed = {c["dataset"] for c in cards if c["dataset"]}
+    for name, table in tables.items():
+        if name in listed:
+            continue
+        cards.append(
+            {
+                "title": name,
+                "dataset": name,
+                "queryable": True,
+                "source_id": DATASET_SOURCE.get(name),
+                "source_name": None,
+                "description": None,
+                "kind": None,
+                "schedule": None,
+                "enabled": True,
+                "labels": ["queryable"],
+                "last_collected": None,
+                "row_count": table.row_count,
+                "column_count": len(table.columns),
+            }
+        )
+
+    # queryable first, then active, then alphabetical — the useful things on top
+    cards.sort(key=lambda c: (not c["queryable"], not c["enabled"], c["title"]))
+    return cards
+
+
+def filter_cards(
+    cards: list[dict[str, Any]], *, q: str = "", kind: str = "", status: str = ""
+) -> list[dict[str, Any]]:
+    """Narrow the card list. Pure function of its inputs, so it is trivial to test.
+
+    Search matches the fields a reader can actually see on the card: its title,
+    the source it came from, and the description. Matching hidden fields would
+    make results look arbitrary.
+    """
+    out = cards
+    needle = q.strip().lower()
+    if needle:
+        out = [
+            c
+            for c in out
+            if needle in c["title"].lower()
+            or needle in (c["source_name"] or "").lower()
+            or needle in (c["source_id"] or "").lower()
+            or needle in (c["description"] or "").lower()
+        ]
+    if kind:
+        out = [c for c in out if c["kind"] == kind]
+    if status == "queryable":
+        out = [c for c in out if c["queryable"]]
+    elif status == "raw":
+        out = [c for c in out if not c["queryable"]]
+    elif status == "paused":
+        out = [c for c in out if not c["enabled"]]
+    return out
+
+
+#: Viewbox the sparkline path is drawn into. The SVG scales; the numbers don't.
+_SPARK_W, _SPARK_H = 640, 160
+
+
+def headline_series() -> dict[str, Any] | None:
+    """World GDP over time, as a ready-to-draw SVG path.
+
+    Decorative *and* true: the hero chart is the real `gdp_annual` series, not a
+    hand-drawn squiggle. Returns None whenever the shape isn't there — an empty
+    lake, or a replica built from some other dataset — so the page degrades to
+    no chart rather than to a lie.
+
+    `WLD` is the World Bank's own world aggregate. Summing the country rows
+    instead would double-count: regional aggregates ("Arab World", "Euro area")
+    are rows in the same table.
+    """
+    if "gdp_annual" not in list_tables():
+        return None
+
+    with read_cursor(timeout=5) as cur:
+        rows = cur.execute(
+            f"""
+            SELECT year, gdp_usd
+            FROM {SCHEMA}.gdp_annual
+            WHERE country_iso3 = 'WLD' AND gdp_usd IS NOT NULL
+            ORDER BY year
+            """
+        ).fetchall()
+
+    if len(rows) < 2:
+        return None
+
+    years = [int(r[0]) for r in rows]
+    values = [float(r[1]) for r in rows]
+    lo, hi = min(values), max(values)
+    span = (hi - lo) or 1.0
+    step = _SPARK_W / (len(rows) - 1)
+
+    points = [
+        (round(i * step, 2), round(_SPARK_H - (v - lo) / span * _SPARK_H, 2))
+        for i, v in enumerate(values)
+    ]
+    line = "M" + " L".join(f"{x},{y}" for x, y in points)
+
+    return {
+        "line": line,
+        # close the path down to the baseline so it can be filled
+        "area": f"{line} L{_SPARK_W},{_SPARK_H} L0,{_SPARK_H} Z",
+        "width": _SPARK_W,
+        "height": _SPARK_H,
+        "first_year": years[0],
+        "last_year": years[-1],
+        "last_value": values[-1],
+        "points": len(points),
+    }
+
+
+def schema_digest() -> str:
+    """The whole catalog as compact text, for an AI system prompt.
+
+    Deliberately terse. A model writing SQL needs shapes, not prose.
+    """
+    lines = [
+        "Read-only DuckDB. Schema `lake`. SELECT and EXPLAIN only.",
+        "Writes, file functions (read_csv/read_parquet), ATTACH, PRAGMA, and",
+        "multiple statements are rejected before execution.",
+        "",
+    ]
+    for name in list_tables():
+        table = describe_table(name)
+        cols = ", ".join(f"{c.name} {c.type}" for c in table.columns)
+        lines.append(f"{SCHEMA}.{table.name} ({table.row_count:,} rows)")
+        lines.append(f"  {cols}")
+    return "\n".join(lines)

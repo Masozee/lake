@@ -1,0 +1,13 @@
+[Unit]
+Description=lake: yearly scrapers
+
+[Timer]
+# Mid-January, small hours. Annual dumps are large; do the transfer when the
+# NAS and the uplink are otherwise idle.
+OnCalendar=*-01-15 03:00:00
+RandomizedDelaySec=7200
+Persistent=true
+Unit=lake-dispatch@yearly.service
+
+[Install]
+WantedBy=timers.target

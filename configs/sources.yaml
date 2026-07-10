@@ -1,0 +1,103 @@
+# The source registry. Adding a source is an edit here plus a package under
+# src/lake/sources/. Nothing else in the system needs to change — no dispatch
+# table, no scheduler edit, no CLI change.
+#
+# After editing:  lake sync-sources
+#
+# Secrets are never written here. Reference them as ${env:VAR_NAME} and put the
+# value in /etc/lake/lake.env, which systemd loads via EnvironmentFile=.
+
+version: 1
+
+defaults:
+  timeout_seconds: 60
+  user_agent: "lake/1.0 (research data collection; ops@example.org)"
+  retry:
+    attempts: 5
+    backoff_seconds: 10
+    max_backoff_seconds: 600
+  retention:
+    raw_days: 1825          # 5 years
+    archive_after_days: 365
+    quarantine_days: 90
+
+sources:
+  # --- daily: paginated JSON API ---------------------------------------------
+  - source_id: worldbank_gdp
+    display_name: "World Bank GDP indicator"
+    description: "GDP in current US dollars for every country, from the World Bank indicator API."
+    kind: api
+    schedule: daily
+    enabled: true
+    owner: data-team
+    # Daily job fires 06:00 with up to 15min jitter. Allow a missed day before
+    # paging — one skipped run is a blip, two is a problem.
+    freshness_sla_hours: 30
+    module: lake.sources.worldbank_gdp.scraper:WorldBankGDPScraper
+    base_url: "https://api.worldbank.org/v2/country/all/indicator/NY.GDP.MKTP.CD"
+    params:
+      format: json
+      per_page: 20000
+
+  # --- weekly: HTML index + linked PDFs --------------------------------------
+  - source_id: gov_news
+    display_name: "Government press releases"
+    description: "Press releases: one HTML index page plus every PDF it links to."
+    kind: html
+    schedule: weekly
+    enabled: true
+    owner: data-team
+    freshness_sla_hours: 200      # 8+ days: one missed Monday is tolerable
+    module: lake.sources.gov_news.scraper:GovNewsScraper
+    index_url: "https://example.gov/news"
+    max_pdfs: 50
+    retention:
+      raw_days: 3650              # 10y legal hold on published statements
+
+  # --- monthly: Excel, conditional GET ---------------------------------------
+  - source_id: bps_inflation
+    display_name: "BPS monthly inflation release"
+    description: "Monthly consumer price inflation by region, published as a single Excel workbook."
+    kind: file
+    schedule: monthly
+    enabled: true
+    owner: research
+    freshness_sla_hours: 800      # ~33 days
+    module: lake.sources.bps_inflation.scraper:BpsInflationScraper
+    url: "https://example.bps.go.id/inflation.xlsx"
+    timeout_seconds: 120
+
+  # --- monthly: HTML index fanning out to ~108 legacy .xls tables -------------
+  - source_id: seki
+    display_name: "SEKI — Indonesian Economic and Financial Statistics"
+    description: "Bank Indonesia's monthly economic and financial statistics: money and banking, balance of payments, GDP, prices, and external debt."
+    kind: html
+    schedule: monthly
+    enabled: true
+    owner: research
+    # SEKI lands mid-month for the prior month. Two missed months is a problem;
+    # one late release is not.
+    freshness_sla_hours: 1200     # ~50 days
+    module: lake.sources.seki.scraper:SekiScraper
+    index_url: "https://www.bi.go.id/id/statistik/ekonomi-keuangan/seki/Default.aspx"
+    # Some tables run to ~2 MB and the site is not fast.
+    timeout_seconds: 120
+    # The endpoints are intermittently flaky: one table failing must not fail the
+    # month; half the site failing must.
+    min_success_ratio: 0.90
+    retention:
+      raw_days: 3650              # 10y: the published series is the archive
+
+  # --- yearly: large streamed dump -------------------------------------------
+  - source_id: census_full
+    display_name: "Annual census dump"
+    description: "One very large gzipped CSV of the national census, collected once a year."
+    kind: file
+    schedule: yearly
+    enabled: false                # flip on once the URL is real
+    owner: research
+    freshness_sla_hours: 9000     # ~375 days
+    module: lake.sources.census_full.scraper:CensusScraper
+    url: "https://example.gov/census/latest.csv.gz"
+    retention:
+      archive_after_days: 730     # census is small and precious; archive late

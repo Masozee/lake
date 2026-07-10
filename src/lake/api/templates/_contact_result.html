@@ -1,0 +1,18 @@
+{% if errors %}
+<div class="notice notice-error" role="alert">
+  <strong>That didn't go through.</strong>
+  <ul>
+    {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+  </ul>
+</div>
+{% else %}
+<div class="notice" role="status">
+  <strong>Thanks, {{ name }}.</strong>
+  <p style="margin:0.5rem 0 0">
+    Your message was recorded. This form does not send mail on its own — for anything
+    time-sensitive, email
+    <a href="mailto:nurojilukmansyah@gmail.com?subject=lake">nurojilukmansyah@gmail.com</a>
+    directly.
+  </p>
+</div>
+{% endif %}

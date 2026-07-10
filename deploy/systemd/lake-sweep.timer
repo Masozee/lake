@@ -1,0 +1,11 @@
+[Unit]
+Description=lake: nightly sweep
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=600
+Persistent=true
+Unit=lake-sweep.service
+
+[Install]
+WantedBy=timers.target

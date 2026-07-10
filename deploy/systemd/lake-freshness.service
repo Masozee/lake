@@ -1,0 +1,31 @@
+# The alert that OnFailure= structurally cannot produce.
+#
+# A scraper that silently stopped being scheduled never fails, because it never
+# runs. Nothing crashes. No unit enters a failed state. The only way to notice
+# is to ask "when did each source last succeed?" and compare against its SLA.
+#
+# Deliberately no OnFailure= here: `lake check-freshness` exits 1 when sources
+# are stale, and it has already sent the alert itself. A second alert on the
+# non-zero exit would double-page.
+
+[Unit]
+Description=lake: alert on sources past their freshness SLA
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=lake
+Group=lake
+WorkingDirectory=/opt/lake
+EnvironmentFile=/etc/lake/lake.env
+ExecStart=/opt/lake/.venv/bin/lake check-freshness --alert
+# Exit 1 means "stale sources found and reported", not "the check broke".
+SuccessExitStatus=0 1
+TimeoutStartSec=300
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# /var/lib/lake holds alert_state.json, which suppresses repeat pages.
+ReadWritePaths=/var/log/lake /var/lib/lake

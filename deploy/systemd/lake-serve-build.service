@@ -1,0 +1,29 @@
+# Rebuild the read-only serving replica from processed/*.parquet.
+#
+# The replica is derived data on the NUC's local SSD. The API reads only from it,
+# so this job is what makes new data visible to the API and the AI. Run it after
+# the transform step, and on a timer.
+
+[Unit]
+Description=lake: rebuild the read-only serving replica
+After=mnt-nas.mount postgresql.service
+Requires=mnt-nas.mount
+
+[Service]
+Type=oneshot
+User=lake
+Group=lake
+WorkingDirectory=/opt/lake
+EnvironmentFile=/etc/lake/lake.env
+ExecStart=/opt/lake/.venv/bin/lake serve build
+TimeoutStartSec=1800
+
+Nice=15
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+# reads processed/ off the NAS, writes the replica to /var/lib/lake/serving
+ReadOnlyPaths=/mnt/nas/lake/processed
+ReadWritePaths=/var/lib/lake /var/log/lake

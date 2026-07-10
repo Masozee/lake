@@ -1,0 +1,13 @@
+[Unit]
+Description=lake: refresh the serving replica hourly
+
+[Timer]
+# Hourly is plenty: the sources publish daily at fastest, and the replica is
+# cheap to rebuild. Adjust down only if you add a high-frequency source.
+OnCalendar=hourly
+RandomizedDelaySec=300
+Persistent=true
+Unit=lake-serve-build.service
+
+[Install]
+WantedBy=timers.target

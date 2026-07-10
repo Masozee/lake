@@ -1,0 +1,24 @@
+# Nightly hygiene: clear abandoned staging dirs, report a filling quarantine.
+# Quarantine that grows and nobody looks at is the same as having no validation.
+
+[Unit]
+Description=lake: sweep staging and report quarantine
+After=mnt-nas.mount postgresql.service
+Requires=mnt-nas.mount
+
+[Service]
+Type=oneshot
+User=lake
+Group=lake
+WorkingDirectory=/opt/lake
+EnvironmentFile=/etc/lake/lake.env
+ExecStart=/opt/lake/.venv/bin/lake sweep --staging-hours 24
+TimeoutStartSec=1800
+
+Nice=19
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/mnt/nas/lake /var/log/lake /var/lib/lake

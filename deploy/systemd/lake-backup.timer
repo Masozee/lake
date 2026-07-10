@@ -1,0 +1,12 @@
+[Unit]
+Description=lake: nightly metadata backup
+
+[Timer]
+# After the nightly sweep, before the morning scrapers.
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=600
+Persistent=true
+Unit=lake-backup.service
+
+[Install]
+WantedBy=timers.target

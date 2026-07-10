@@ -1,0 +1,16 @@
+[Unit]
+Description=lake: daily scrapers
+
+[Timer]
+OnCalendar=*-*-* 06:00:00
+# Twelve scrapers hitting a government server at exactly 06:00:00 looks like a
+# bot and gets you rate-limited. Jitter is free politeness.
+RandomizedDelaySec=900
+# The single most important line in this file. A NUC's real failure mode is
+# being switched off, not being wrong. Without this, a missed 06:00 is simply
+# lost; with it, the run fires on the next boot.
+Persistent=true
+Unit=lake-dispatch@daily.service
+
+[Install]
+WantedBy=timers.target

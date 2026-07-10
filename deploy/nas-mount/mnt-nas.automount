@@ -1,0 +1,22 @@
+# Optional. Install as /etc/systemd/system/mnt-nas.automount
+#
+# Lazily mounts /mnt/nas on first access and remounts it after a NAS reboot,
+# instead of leaving a permanently dead mount point behind. Enable this OR the
+# plain .mount unit, not both:
+#
+#   sudo systemctl enable --now mnt-nas.automount
+#
+# Note the interaction with Requires=mnt-nas.mount in the scraper units: with an
+# automount in place, the mount is triggered on first access rather than at boot.
+# The .lake_mounted sentinel check in code remains the real guard either way.
+
+[Unit]
+Description=Automount NAS data lake
+After=network-online.target
+
+[Automount]
+Where=/mnt/nas
+TimeoutIdleSec=0
+
+[Install]
+WantedBy=multi-user.target

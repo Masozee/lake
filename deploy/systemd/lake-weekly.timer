@@ -1,0 +1,11 @@
+[Unit]
+Description=lake: weekly scrapers
+
+[Timer]
+OnCalendar=Mon *-*-* 06:30:00
+RandomizedDelaySec=1800
+Persistent=true
+Unit=lake-dispatch@weekly.service
+
+[Install]
+WantedBy=timers.target

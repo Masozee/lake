@@ -1,0 +1,23 @@
+{# Query result: columns + rows + a stat line. Shared by the table sample and the
+   query page. `result` is {columns, rows, row_count, truncated, elapsed_ms}. #}
+<div class="table-container" style="max-height:65vh;overflow:auto">
+  <table class="table">
+    <thead><tr>{% for col in result.columns %}<th class="mono">{{ col }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for row in result.rows %}
+      <tr>
+        {% for cell in row %}
+          {% if cell is none %}<td class="cell-null">∅</td>
+          {% elif cell is float %}<td class="data-mono" style="text-align:right">{{ "{:,.2f}".format(cell) }}</td>
+          {% elif cell is integer %}<td class="data-mono" style="text-align:right">{{ cell }}</td>
+          {% else %}<td class="mono">{{ cell }}</td>{% endif %}
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="muted mt-3" style="font-size:.85rem">
+  {{ "{:,}".format(result.row_count) }} rows in {{ result.elapsed_ms }}ms
+  {% if result.truncated %} · showing first {{ "{:,}".format(result.row_count) }}{% endif %}
+</p>

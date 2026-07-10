@@ -1,0 +1,20 @@
+# Activated by OnFailure= on the scraper units. %i is the source_id.
+# Never activated directly.
+
+[Unit]
+Description=lake: alert that %i failed
+
+[Service]
+Type=oneshot
+User=lake
+Group=lake
+WorkingDirectory=/opt/lake
+EnvironmentFile=/etc/lake/lake.env
+ExecStart=/opt/lake/.venv/bin/lake alert --source %i --unit lake-scrape@%i.service
+TimeoutStartSec=60
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/lake /var/lib/lake

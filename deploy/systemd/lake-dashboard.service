@@ -1,0 +1,44 @@
+# Streamlit job-status dashboard.
+#
+# SECURITY: Streamlit has no authentication of any kind. This binds to 127.0.0.1
+# and must stay that way. Reach it over Tailscale/WireGuard, or put an nginx
+# reverse proxy with basic auth in front. Never expose port 8501.
+#
+# Unlike the oneshot scrapers, this is a long-running service, so Restart= is
+# correct here: a crashed dashboard should come back.
+
+[Unit]
+Description=lake: job status dashboard
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=lake
+Group=lake
+WorkingDirectory=/opt/lake
+EnvironmentFile=/etc/lake/lake.env
+ExecStart=/opt/lake/.venv/bin/streamlit run dashboard/app.py \
+    --server.address 127.0.0.1 \
+    --server.port 8501 \
+    --server.headless true \
+    --browser.gatherUsageStats false
+
+Restart=on-failure
+RestartSec=30
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+MemoryMax=1G
+# Read-only view of the lake: the dashboard must never be able to mutate data.
+ReadOnlyPaths=/mnt/nas/lake
+ReadWritePaths=/var/log/lake
+
+[Install]
+WantedBy=multi-user.target

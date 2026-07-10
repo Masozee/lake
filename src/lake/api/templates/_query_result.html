@@ -1,0 +1,31 @@
+{# Query result fragment swapped in by htmx. On error, `error` is set instead. #}
+{% if error %}
+  <div class="alert" data-variant="destructive" role="alert">
+    <h2>Query rejected</h2>
+    <p>{{ error }}</p>
+  </div>
+{% else %}
+  {% if bars %}
+  <div class="card mb-4">
+    <section>
+      <div class="bars" role="img" aria-label="bar chart of the result">
+        {% for b in bars %}
+        <div class="bar-row">
+          <span class="bar-label" title="{{ b.label }}">{{ b.label }}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:{{ b.pct }}%"></div></div>
+          <span class="bar-value">{{ b.display }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+  {% endif %}
+
+  <div class="hstack mb-4">
+    <span class="muted">Download this result:</span>
+    <a class="btn" href="/api/query/export.csv?filename=query&sql={{ sql|urlencode }}">CSV</a>
+    <a class="btn" href="/api/query/export.xlsx?filename=query&sql={{ sql|urlencode }}">Excel</a>
+  </div>
+
+  {% include "_result_table.html" %}
+{% endif %}

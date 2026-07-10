@@ -1,0 +1,41 @@
+# Install as /etc/systemd/system/mnt-nas.mount
+#
+# The filename MUST match the mount point: /mnt/nas -> mnt-nas.mount. systemd
+# derives the unit name from the path and will refuse to load a mismatch.
+#
+# Why a .mount unit instead of an /etc/fstab line: real dependency ordering. A
+# scraper unit with Requires=mnt-nas.mount will refuse to start when the NAS is
+# down, instead of cheerfully writing into an empty /mnt/nas on the root disk.
+# That silent failure — scrapers filling the NUC's SSD for three weeks because
+# nobody noticed the NAS was unmounted — is the most common way this
+# architecture dies.
+#
+# After installing:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now mnt-nas.mount
+#   sudo touch /mnt/nas/lake/.lake_mounted   # the sentinel; create it ON the NAS
+
+[Unit]
+Description=NAS data lake mount
+After=network-online.target
+Wants=network-online.target
+
+[Mount]
+What=192.168.1.50:/volume1/lake
+Where=/mnt/nas
+Type=nfs
+
+# hard, not soft. A soft mount returns an I/O error on timeout and lets a write
+# silently half-complete; a hard mount blocks until the NAS returns. Blocking is
+# recoverable. Corruption is not. TimeoutStartSec on the service catches a hang.
+#
+# vers=4.2   modern NFS: no portmapper, better locking, server-side copy
+# noatime    do not write an access timestamp on every read of a 4 GB dump
+# rsize/wsize 1 MiB transfers; the default 128 KiB wastes a gigabit link
+# timeo=600  60 seconds (deciseconds) before the first retransmit
+Options=rw,vers=4.2,hard,noatime,rsize=1048576,wsize=1048576,timeo=600,retrans=2,_netdev
+
+TimeoutSec=30
+
+[Install]
+WantedBy=multi-user.target
