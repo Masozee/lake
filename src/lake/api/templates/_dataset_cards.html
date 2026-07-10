@@ -1,5 +1,9 @@
 {# The card grid. Rendered inside the full page AND swapped in by htmx on every
-   search keystroke, so the two can never drift apart. #}
+   search keystroke, so the two can never drift apart.
+
+   One card per dataset, not per source: SEKI is one source publishing 108
+   statistical tables, and "Uang Beredar dan Faktor-Faktor yang Mempengaruhinya"
+   is what a reader looks for. #}
 <p class="result-count muted" aria-live="polite">
   {% if cards | length == total %}
     {{ total }} {{ "dataset" if total == 1 else "datasets" }}
@@ -13,14 +17,23 @@
   {% for c in cards %}
   <article class="dcard">
     <header>
-      <h3 class="dcard-title mono">{{ c.title }}</h3>
+      <h3 class="dcard-title{{ ' mono' if not c.section }}">
+        {%- if c.slug -%}
+          <a href="/dataset/{{ c.slug | urlencode }}">{{ c.title }}</a>
+        {%- else -%}
+          {{ c.title }}
+        {%- endif -%}
+      </h3>
       <p class="dcard-source">
+        {%- if c.number %}<span class="dcard-number">{{ c.number }}</span> {% endif -%}
         {%- if c.source_name -%}{{ c.source_name }}{%- else -%}Source not in registry{%- endif -%}
       </p>
     </header>
 
     <p class="dcard-desc">
-      {%- if c.description -%}
+      {%- if c.section -%}
+        {{ c.section | title }}
+      {%- elif c.description -%}
         {{ c.description }}
       {%- else -%}
         <span class="muted">No description yet.</span>
@@ -35,7 +48,11 @@
 
     <footer class="dcard-foot">
       <div class="dcard-meta">
-        {%- if c.last_collected -%}
+        {%- if c.first_period and c.last_period -%}
+          <time datetime="{{ c.first_period.isoformat() }}">{{ c.first_period.year }}</time>
+          <span class="dot">–</span>
+          <time datetime="{{ c.last_period.isoformat() }}">{{ c.last_period.year }}</time>
+        {%- elif c.last_collected -%}
           <span class="muted">Updated</span>
           <time datetime="{{ c.last_collected.isoformat() }}">{{ c.last_collected.strftime("%-d %b %Y") }}</time>
         {%- else -%}
@@ -44,15 +61,14 @@
         {%- if c.row_count is not none -%}
           <span class="dot">·</span><span>{{ "{:,}".format(c.row_count) }} rows</span>
         {%- endif -%}
+        {%- if c.indicators -%}
+          <span class="dot">·</span><span>{{ c.indicators }} series</span>
+        {%- endif -%}
       </div>
 
-      {% if c.queryable %}
-      <div class="hstack" style="gap:0.5rem">
-        <a class="btn" data-variant="primary" style="min-height:36px"
-           href="/query?sql={{ ('SELECT * FROM lake.' ~ c.dataset ~ ' LIMIT 100')|urlencode }}">Query</a>
-        <a class="btn" data-variant="ghost" style="min-height:36px"
-           href="/table/{{ c.dataset }}">Details</a>
-      </div>
+      {% if c.slug %}
+      <a class="btn" data-variant="ghost" style="min-height:36px"
+         href="/dataset/{{ c.slug | urlencode }}">View →</a>
       {% else %}
       <span class="muted dcard-note">Collected, not yet queryable</span>
       {% endif %}
@@ -66,6 +82,7 @@
   <p class="tile-meta">
     Nothing here matches
     {%- if q %} “{{ q }}”{% endif %}
+    {%- if section %} in {{ section | title }}{% endif %}
     {%- if kind %} in {{ kind }} sources{% endif %}
     {%- if status %} with status {{ status }}{% endif %}.
     Try a broader search, or <a href="/datasets">clear the filters</a>.

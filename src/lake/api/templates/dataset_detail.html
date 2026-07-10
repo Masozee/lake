@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}{{ dataset.title }}{% endblock %}
+
+{% block full_bleed %}
+<main>
+  <section class="hero dotgrid" style="padding-bottom:2.5rem">
+    <div class="wrap" style="padding:0">
+      <p class="eyebrow">
+        <a href="/datasets" class="reset">← all datasets</a>
+        {%- if dataset.section %}
+          <span class="dot">·</span>
+          <a href="/datasets?section={{ dataset.section | urlencode }}">{{ dataset.section | title }}</a>
+        {%- endif %}
+      </p>
+
+      <div class="hero-grid">
+        <div>
+          {% if dataset.number %}
+          <p class="detail-number mono">{{ dataset.number }}</p>
+          {% endif %}
+          <h1 class="detail-title">{{ dataset.title }}</h1>
+          <p class="hero-lead">
+            {% if source %}
+              Collected from {{ source.display_name }} on a {{ source.schedule }} schedule.
+            {% endif %}
+            Read-only — this page cannot change the data.
+          </p>
+          <div class="hero-actions">
+            <a href="/query?sql={{ dataset.sql | urlencode }}" class="btn" data-variant="primary"
+               style="min-height:48px">Query this dataset</a>
+            {% if not dataset.partition %}
+            <a href="/api/tables/{{ dataset.table }}/export.csv" class="btn" data-variant="ghost"
+               style="min-height:48px">Download CSV</a>
+            {% endif %}
+          </div>
+        </div>
+
+        {% if series %}
+        {# The first indicator Bank Indonesia lists is the one the table is named
+           for, so it is the honest thing to plot. #}
+        <figure style="margin:0" data-reveal>
+          <svg class="chart" viewBox="-2 -8 {{ series.width + 4 }} {{ series.height + 16 }}"
+               role="img" preserveAspectRatio="none" style="height:11rem"
+               aria-label="{{ dataset.title }}, {{ series.first_period.year }} to {{ series.last_period.year }}">
+            <line class="chart-frame" x1="0" y1="{{ series.height }}"
+                  x2="{{ series.width }}" y2="{{ series.height }}"/>
+            <path class="chart-area" d="{{ series.area }}"/>
+            <path class="chart-line" d="{{ series.line }}"/>
+            <circle class="chart-cap" cx="{{ series.width }}" cy="0" r="4"/>
+          </svg>
+          {# The chart shows the tail of the series, not all of it: 240 points is
+             what reads at this size. Say so, rather than implying the data
+             begins where the line does. #}
+          <figcaption class="chart-caption">
+            {%- if series.first_period.year > dataset.first_period.year -%}
+              Last {{ series.first_period.year }}–{{ series.last_period.year }}
+            {%- else -%}
+              {{ series.first_period.year }}–{{ series.last_period.year }}
+            {%- endif %} ·
+            latest {{ "{:,.0f}".format(series.last_value) }}
+            {%- if dataset.unit %} {{ dataset.unit }}{% endif %}
+          </figcaption>
+        </figure>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="stat-band">
+    <div class="stat">
+      <div class="stat-value" data-count="{{ dataset.row_count }}">{{ "{:,}".format(dataset.row_count) }}</div>
+      <div class="stat-label">Rows</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">
+        {%- if dataset.indicators -%}{{ dataset.indicators }}
+        {%- else -%}{{ dataset.columns | length }}{%- endif -%}
+      </div>
+      <div class="stat-label">{{ "Series" if dataset.indicators else "Columns" }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">
+        {%- if dataset.first_period -%}{{ dataset.first_period.year }}–{{ dataset.last_period.year }}
+        {%- else -%}—{%- endif -%}
+      </div>
+      <div class="stat-label">{{ dataset.freq | title if dataset.freq else "Coverage" }}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" style="font-size:1.5rem">{{ dataset.unit or "—" }}</div>
+      <div class="stat-label">Unit</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap" style="padding:0">
+      <h2 class="section-head" data-reveal>Latest observations</h2>
+      <p class="section-lead">
+        The most recent rows, newest first. Use
+        <a href="/query?sql={{ dataset.sql | urlencode }}">the query page</a> for the rest,
+        or <a href="/ask">ask the AI</a> about them.
+      </p>
+
+      {% if sample.rows %}
+      <div class="table-wrap" data-reveal>
+        <table>
+          <thead>
+            <tr>{% for c in sample.columns %}<th>{{ c }}</th>{% endfor %}</tr>
+          </thead>
+          <tbody>
+            {% for row in sample.rows %}
+            <tr>
+              {% for cell in row %}
+              <td class="{{ 'data-mono' if cell.__class__.__name__ in ('int', 'float') }}">
+                {%- if cell is none -%}<span class="cell-null">∅</span>
+                {%- elif cell.__class__.__name__ == 'float' -%}{{ "{:,.2f}".format(cell) }}
+                {%- else -%}{{ cell }}{%- endif -%}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="muted">No rows.</p>
+      {% endif %}
+
+      <h3 class="section-title">Columns</h3>
+      <div class="schema-list" data-reveal>
+        {% for c in dataset.columns %}
+        <div class="schema-col">
+          <span class="mono schema-name">{{ c.name }}</span>
+          <span class="schema-type">{{ c.type | lower }}</span>
+        </div>
+        {% endfor %}
+      </div>
+
+      {% if dataset.partition %}
+      <p class="muted mt-3" style="font-size:0.875rem">
+        This dataset is one of many in the <code class="mono">{{ dataset.table }}</code> table,
+        selected with <code class="mono">{{ dataset.partition_key }} = '{{ dataset.partition }}'</code>.
+      </p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="cta-inner">
+      <div>
+        <h2 class="cta-title">Something look wrong?</h2>
+        <p class="cta-lead">
+          If a number here disagrees with the publisher, we want to know. Send the query you
+          ran — it is the fastest possible bug report.
+        </p>
+      </div>
+      <a class="btn-on-blue" href="/contact">Report it</a>
+    </div>
+  </section>
+</main>
+{% endblock %}

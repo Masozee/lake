@@ -13,11 +13,12 @@ machine the data sits on.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from lake.api.engine import SCHEMA, read_cursor, replica_path, scalar
+from lake.api.engine import SCHEMA, jsonable, read_cursor, replica_path, scalar
 from lake.settings import get_settings
 
 #: Sample rows shown per table. Enough for an AI to infer value shapes; small
@@ -170,6 +171,34 @@ DATASET_SOURCE = {
 }
 
 
+@dataclass(frozen=True, slots=True)
+class Partitioned:
+    """A DuckDB table that holds many logical datasets, one per key value.
+
+    SEKI is one source publishing 108 statistical tables. They share a schema, so
+    the transform writes them into a single `seki_indicators` table rather than
+    108 near-identical ones — but "Uang Beredar dan Faktor-Faktor yang
+    Mempengaruhinya" is a dataset a reader looks for by name, not a `table_id`
+    they have to know to filter on. This declares how to fan one table back out.
+    """
+
+    key: str  # the column that separates one logical dataset from the next
+    title: str  # human name of the dataset
+    label: str  # a further grouping, e.g. SEKI's section headings
+    number: str | None = None  # the publisher's own numbering, if any
+
+
+#: Tables that are really many datasets. Everything else is one dataset per table.
+PARTITIONED: dict[str, Partitioned] = {
+    "seki_indicators": Partitioned(
+        key="table_id", title="table_title", label="section", number="table_number"
+    ),
+}
+
+#: Separates a table from the partition inside it: `seki_indicators:TABEL1_1`.
+SLUG_SEP = ":"
+
+
 _MANIFEST_NAME = "_MANIFEST.json"
 
 
@@ -210,108 +239,386 @@ def last_collected(source_id: str) -> datetime | None:
     return newest
 
 
-def dataset_cards(sources: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-    """One card per thing the lake collects, published or not.
+def partitions_of(table: str) -> list[dict[str, Any]]:
+    """The logical datasets inside a partitioned table, with their shape.
 
-    A single list, because a reader searching for "inflation" should find it
-    whether or not a transform exists yet. The `queryable` flag is what keeps the
-    page honest: only a published dataset offers a query link, and the card says
-    so plainly rather than implying data that isn't there.
+    One grouped scan rather than 108 queries. `any_value` is safe here because
+    the transform writes the title, section, and number once per `table_id`.
+    """
+    spec = PARTITIONED.get(table)
+    if spec is None:
+        return []
+
+    number = f'any_value("{spec.number}")' if spec.number else "NULL"
+    with read_cursor(timeout=15) as cur:
+        rows = cur.execute(
+            f"""
+            SELECT
+                "{spec.key}"                    AS key,
+                any_value("{spec.title}")       AS title,
+                any_value("{spec.label}")       AS label,
+                {number}                        AS number,
+                count(*)                        AS row_count,
+                count(DISTINCT indicator)       AS indicators,
+                min(period)                     AS first_period,
+                max(period)                     AS last_period,
+                any_value(unit)                 AS unit,
+                any_value(freq)                 AS freq
+            FROM {SCHEMA}."{table}"
+            GROUP BY "{spec.key}"
+            ORDER BY "{spec.key}"
+            """
+        ).fetchall()
+
+    return [
+        {
+            "key": r[0],
+            "title": r[1] or r[0],
+            "label": r[2],
+            "number": r[3],
+            "row_count": r[4],
+            "indicators": r[5],
+            "first_period": r[6],
+            "last_period": r[7],
+            "unit": r[8],
+            "freq": r[9],
+        }
+        for r in rows
+    ]
+
+
+def _card(**kw: Any) -> dict[str, Any]:
+    base = {
+        "slug": None,
+        "title": None,
+        "dataset": None,
+        "partition": None,
+        "queryable": False,
+        "source_id": None,
+        "source_name": None,
+        "description": None,
+        "kind": None,
+        "schedule": None,
+        "enabled": True,
+        "section": None,
+        "number": None,
+        "labels": [],
+        "last_collected": None,
+        "row_count": None,
+        "column_count": None,
+        "indicators": None,
+        "first_period": None,
+        "last_period": None,
+        "unit": None,
+        "freq": None,
+    }
+    return {**base, **kw}
+
+
+def dataset_cards(sources: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
+    """One card per dataset — not per source.
+
+    A source is a thing we scrape; a dataset is a thing you can read. SEKI is one
+    source that publishes 108 statistical tables, and "Uang Beredar dan
+    Faktor-Faktor yang Mempengaruhinya" is what a reader is looking for. Listing
+    the source alone would hide all 108 behind an id nobody searches for.
+
+    A source that has published nothing yet still gets one card, so the page says
+    what is being collected rather than pretending it does not exist.
     """
     try:
         tables = {t.name: t for t in (describe_table(n) for n in list_tables())}
     except FileNotFoundError:
         tables = {}
 
-    dataset_for = {src: ds for ds, src in DATASET_SOURCE.items()}
+    by_id = {s["source_id"]: s for s in (sources or [])}
     cards: list[dict[str, Any]] = []
+    published_sources: set[str] = set()
 
-    for source in sources or []:
-        source_id = source["source_id"]
-        name = dataset_for.get(source_id)
-        table = tables.get(name) if name else None
-
-        labels = [source.get("kind", "—"), source.get("schedule", "—")]
-        labels.append("queryable" if table else "raw only")
-        if not source.get("enabled", False):
-            labels.append("paused")
-
-        cards.append(
-            {
-                "title": name or source_id,
-                "dataset": name,
-                "queryable": table is not None,
-                "source_id": source_id,
-                "source_name": source.get("display_name", source_id),
-                "description": source.get("description"),
-                "kind": source.get("kind"),
-                "schedule": source.get("schedule"),
-                "enabled": bool(source.get("enabled", False)),
-                "labels": labels,
-                "last_collected": last_collected(source_id),
-                "row_count": table.row_count if table else None,
-                "column_count": len(table.columns) if table else None,
-            }
-        )
-
-    # A published dataset whose source is missing from the registry still belongs
-    # on the page — otherwise it would be queryable but invisible.
-    listed = {c["dataset"] for c in cards if c["dataset"]}
     for name, table in tables.items():
-        if name in listed:
+        source_id = DATASET_SOURCE.get(name)
+        source = by_id.get(source_id) if source_id else None
+        if source_id:
+            published_sources.add(source_id)
+
+        common = {
+            "dataset": name,
+            "queryable": True,
+            "source_id": source_id,
+            "source_name": source.get("display_name") if source else None,
+            "kind": source.get("kind") if source else None,
+            "schedule": source.get("schedule") if source else None,
+            "enabled": bool(source.get("enabled", True)) if source else True,
+            "last_collected": last_collected(source_id) if source_id else None,
+        }
+
+        if name not in PARTITIONED:
+            cards.append(
+                _card(
+                    **common,
+                    slug=name,
+                    title=name,
+                    description=source.get("description") if source else None,
+                    row_count=table.row_count,
+                    column_count=len(table.columns),
+                    labels=_labels(common, queryable=True),
+                )
+            )
+            continue
+
+        # One card per logical dataset inside the table.
+        for part in partitions_of(name):
+            cards.append(
+                _card(
+                    **common,
+                    slug=f"{name}{SLUG_SEP}{part['key']}",
+                    title=part["title"],
+                    partition=part["key"],
+                    section=part["label"],
+                    number=part["number"],
+                    row_count=part["row_count"],
+                    column_count=len(table.columns),
+                    indicators=part["indicators"],
+                    first_period=part["first_period"],
+                    last_period=part["last_period"],
+                    unit=part["unit"],
+                    freq=part["freq"],
+                    labels=_labels(common, queryable=True, extra=[part["freq"]]),
+                )
+            )
+
+    # A source that has collected nothing yet is still worth naming: the page
+    # should say what is being gathered, not only what is already queryable.
+    for source in sources or []:
+        if source["source_id"] in published_sources:
             continue
         cards.append(
-            {
-                "title": name,
-                "dataset": name,
-                "queryable": True,
-                "source_id": DATASET_SOURCE.get(name),
-                "source_name": None,
-                "description": None,
-                "kind": None,
-                "schedule": None,
-                "enabled": True,
-                "labels": ["queryable"],
-                "last_collected": None,
-                "row_count": table.row_count,
-                "column_count": len(table.columns),
-            }
+            _card(
+                slug=None,
+                title=source["source_id"],
+                queryable=False,
+                source_id=source["source_id"],
+                source_name=source.get("display_name", source["source_id"]),
+                description=source.get("description"),
+                kind=source.get("kind"),
+                schedule=source.get("schedule"),
+                enabled=bool(source.get("enabled", False)),
+                last_collected=last_collected(source["source_id"]),
+                labels=_labels(source, queryable=False),
+            )
         )
 
-    # queryable first, then active, then alphabetical — the useful things on top
-    cards.sort(key=lambda c: (not c["queryable"], not c["enabled"], c["title"]))
+    # queryable first, then active, then by section, then by the publisher's own
+    # numbering where it exists — so SEKI reads in the order Bank Indonesia prints it
+    cards.sort(
+        key=lambda c: (
+            not c["queryable"],
+            not c["enabled"],
+            c["section"] or "",
+            _number_key(c["number"]),
+            c["title"].lower(),
+        )
+    )
     return cards
 
 
+def _labels(
+    source: dict[str, Any], *, queryable: bool, extra: list[str] | None = None
+) -> list[str]:
+    """Chips for one card, in a stable order and never repeated.
+
+    A source's collection schedule and its data's frequency are different facts
+    that often share a word — SEKI is scraped monthly and its series are monthly
+    — so the duplicate is dropped rather than shown twice.
+    """
+    candidates = [source.get("kind"), source.get("schedule"), *(extra or [])]
+    labels: list[str] = []
+    for label in candidates:
+        if label and label not in labels:
+            labels.append(label)
+    labels.append("queryable" if queryable else "raw only")
+    if not source.get("enabled", True):
+        labels.append("paused")
+    return labels
+
+
+def _number_key(number: str | None) -> tuple:
+    """Sort `I.10.` after `I.9.`, not between `I.1.` and `I.2.`."""
+    if not number:
+        return ()
+    return tuple(int(p) if p.isdigit() else p for p in re.split(r"[.\s]+", number) if p)
+
+
 def filter_cards(
-    cards: list[dict[str, Any]], *, q: str = "", kind: str = "", status: str = ""
+    cards: list[dict[str, Any]],
+    *,
+    q: str = "",
+    kind: str = "",
+    status: str = "",
+    section: str = "",
 ) -> list[dict[str, Any]]:
     """Narrow the card list. Pure function of its inputs, so it is trivial to test.
 
     Search matches the fields a reader can actually see on the card: its title,
-    the source it came from, and the description. Matching hidden fields would
-    make results look arbitrary.
+    the source it came from, the description, the section it sits under, and the
+    publisher's own numbering — so both "uang beredar" and "I.1." find the table.
+    Matching hidden fields would make results look arbitrary.
     """
     out = cards
     needle = q.strip().lower()
     if needle:
-        out = [
-            c
-            for c in out
-            if needle in c["title"].lower()
-            or needle in (c["source_name"] or "").lower()
-            or needle in (c["source_id"] or "").lower()
-            or needle in (c["description"] or "").lower()
-        ]
+        out = [c for c in out if needle in _haystack(c)]
     if kind:
-        out = [c for c in out if c["kind"] == kind]
+        out = [c for c in out if c.get("kind") == kind]
+    if section:
+        out = [c for c in out if c.get("section") == section]
     if status == "queryable":
-        out = [c for c in out if c["queryable"]]
+        out = [c for c in out if c.get("queryable")]
     elif status == "raw":
-        out = [c for c in out if not c["queryable"]]
+        out = [c for c in out if not c.get("queryable")]
     elif status == "paused":
-        out = [c for c in out if not c["enabled"]]
+        out = [c for c in out if not c.get("enabled", True)]
     return out
+
+
+def split_slug(slug: str) -> tuple[str, str | None]:
+    """`seki_indicators:TABEL1_1` -> ("seki_indicators", "TABEL1_1")."""
+    table, _, partition = slug.partition(SLUG_SEP)
+    return table, partition or None
+
+
+def describe_dataset(slug: str) -> dict[str, Any]:
+    """Everything a detail page needs, for a whole table or one partition of one.
+
+    Raises KeyError when the slug names nothing we serve — the caller turns that
+    into a 404 rather than rendering an empty page that looks like real data.
+    """
+    table_name, partition = split_slug(slug)
+    table = describe_table(table_name)  # raises KeyError on an unknown table
+    spec = PARTITIONED.get(table_name)
+
+    if partition is None:
+        if spec is not None:
+            # the umbrella table itself is not a dataset a reader browses
+            raise KeyError(f"{table_name} is a collection; name one of its datasets")
+        return {
+            "slug": slug,
+            "table": table_name,
+            "partition": None,
+            "title": table_name,
+            "columns": [
+                {"name": c.name, "type": c.type, "nullable": c.nullable} for c in table.columns
+            ],
+            "row_count": table.row_count,
+            "source_id": DATASET_SOURCE.get(table_name),
+            "sql": f'SELECT * FROM {SCHEMA}."{table_name}" LIMIT 100',
+        }
+
+    if spec is None:
+        raise KeyError(f"{table_name} has no partitions")
+
+    with read_cursor(timeout=15) as cur:
+        row = cur.execute(
+            f"""
+            SELECT
+                any_value("{spec.title}"), any_value("{spec.label}"),
+                {f'any_value("{spec.number}")' if spec.number else "NULL"},
+                count(*), count(DISTINCT indicator),
+                min(period), max(period), any_value(unit), any_value(freq)
+            FROM {SCHEMA}."{table_name}" WHERE "{spec.key}" = ?
+            """,
+            [partition],
+        ).fetchone()
+
+    if not row or not row[3]:
+        raise KeyError(f"no dataset {partition!r} in {table_name}")
+
+    quoted = partition.replace("'", "''")
+    return {
+        "slug": slug,
+        "table": table_name,
+        "partition": partition,
+        "partition_key": spec.key,
+        "title": row[0] or partition,
+        "section": row[1],
+        "number": row[2],
+        "row_count": row[3],
+        "indicators": row[4],
+        "first_period": row[5],
+        "last_period": row[6],
+        "unit": row[7],
+        "freq": row[8],
+        "columns": [
+            {"name": c.name, "type": c.type, "nullable": c.nullable} for c in table.columns
+        ],
+        "source_id": DATASET_SOURCE.get(table_name),
+        "sql": (
+            f'SELECT period, indicator, value\nFROM {SCHEMA}."{table_name}"\n'
+            f"WHERE {spec.key} = '{quoted}'\nORDER BY period DESC, indicator\nLIMIT 100"
+        ),
+    }
+
+
+def dataset_sample(slug: str, limit: int = 20) -> dict[str, Any]:
+    """A few real rows of this dataset, for the detail page."""
+    table_name, partition = split_slug(slug)
+    name = _assert_known_table(table_name)
+    spec = PARTITIONED.get(name)
+
+    if partition is None or spec is None:
+        sql = f'SELECT * FROM {SCHEMA}."{name}"'
+        params: list[Any] = []
+    else:
+        sql = (
+            f'SELECT period, indicator, value, unit FROM {SCHEMA}."{name}" '
+            f'WHERE "{spec.key}" = ? ORDER BY period DESC, indicator'
+        )
+        params = [partition]
+
+    with read_cursor(timeout=15) as cur:
+        cur.execute(f"{sql} LIMIT {int(limit)}", params)
+        columns = [d[0] for d in cur.description]
+        rows = [[jsonable(v) for v in r] for r in cur.fetchall()]
+    return {"columns": columns, "rows": rows, "row_count": len(rows)}
+
+
+def dataset_series(slug: str, limit_points: int = 240) -> list[dict[str, Any]]:
+    """The headline series of a partitioned dataset, newest points last.
+
+    The first indicator Bank Indonesia lists is the one the table is named for
+    (row 1 of "Uang Beredar…" is M2), so it is the honest thing to plot.
+    """
+    table_name, partition = split_slug(slug)
+    name = _assert_known_table(table_name)
+    spec = PARTITIONED.get(name)
+    if partition is None or spec is None:
+        return []
+
+    with read_cursor(timeout=15) as cur:
+        rows = cur.execute(
+            f"""
+            WITH lead AS (
+                SELECT indicator FROM {SCHEMA}."{name}"
+                WHERE "{spec.key}" = ? AND row_no IS NOT NULL
+                ORDER BY row_no LIMIT 1
+            )
+            SELECT period, value FROM {SCHEMA}."{name}"
+            WHERE "{spec.key}" = ? AND indicator = (SELECT indicator FROM lead)
+            ORDER BY period
+            """,
+            [partition, partition],
+        ).fetchall()
+
+    points = rows[-limit_points:]
+    return [{"period": p, "value": v} for p, v in points]
+
+
+#: What a search query is matched against — everything a reader can see on the card.
+_SEARCHABLE = ("title", "source_name", "source_id", "description", "section", "number")
+
+
+def _haystack(card: dict[str, Any]) -> str:
+    return " ".join(str(card.get(f)) for f in _SEARCHABLE if card.get(f)).lower()
 
 
 #: Viewbox the sparkline path is drawn into. The SVG scales; the numbers don't.

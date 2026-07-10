@@ -145,14 +145,14 @@ def test_datasets_page_cards_carry_the_required_fields(client):
     assert "Updated" in body or "Never collected" in body  # latest update
 
 
-def test_only_queryable_cards_offer_a_query_link(client):
+def test_only_queryable_cards_offer_a_detail_link(client):
     """A source with no transform must never look queryable. This is the whole
     reason the card carries a `queryable` flag rather than assuming."""
     body = client.get("/datasets").text
     assert "bps_inflation" in body  # it is listed…
-    assert 'href="/table/bps_inflation"' not in body  # …but not linkable
+    assert 'href="/dataset/bps_inflation"' not in body  # …but not linkable
     assert "Collected, not yet queryable" in body
-    assert 'href="/table/gdp_annual"' in body  # the published one is
+    assert 'href="/dataset/gdp_annual"' in body  # the published one is
 
 
 def test_datasets_page_links_resolve(client):
@@ -160,6 +160,53 @@ def test_datasets_page_links_resolve(client):
     assert client.get("/table/gdp_annual").status_code == 200
     assert client.get("/api/tables/gdp_annual/export.csv").status_code == 200
     assert client.get("/api/tables/gdp_annual/export.xlsx").status_code == 200
+
+
+def test_every_card_title_links_to_a_detail_page(client):
+    """The title is the link. A card the reader cannot open is a dead end."""
+    import re
+
+    body = client.get("/datasets").text
+    titled = re.findall(r'<h3 class="dcard-title[^"]*">\s*(?:<a href="([^"]*)">)?', body)
+    assert titled, "no cards rendered"
+    # every queryable card carries a link; the not-yet-collected ones carry none
+    linked = [href for href in titled if href]
+    assert linked, "no card title is a link"
+    assert all(href.startswith("/dataset/") for href in linked)
+
+
+def test_a_dataset_detail_page_renders_for_a_plain_table(client):
+    from lake.api import catalog
+
+    r = client.get("/dataset/gdp_annual")
+    assert r.status_code == 200
+    assert "gdp_annual" in r.text
+    # the fixture replica is small; assert the real number rather than a literal
+    assert f"{catalog.describe_table('gdp_annual').row_count:,}" in r.text
+    assert 'href="/query?sql=' in r.text  # the query link is prefilled
+
+
+def test_an_unknown_dataset_is_a_404_not_an_empty_page(client):
+    assert client.get("/dataset/no_such_thing").status_code == 404
+    assert client.get("/dataset/gdp_annual:nope").status_code == 404
+
+
+def test_the_umbrella_table_is_not_itself_a_dataset():
+    """`seki_indicators` is a collection of 108 datasets, not one a reader browses.
+    Rendering it would show a meaningless union of every statistical table.
+
+    Checked against the registry rather than a live replica: the test fixture
+    holds only gdp_annual, and the rule is about what PARTITIONED declares.
+    """
+    from lake.api.catalog import PARTITIONED, Partitioned, split_slug
+
+    spec = PARTITIONED["seki_indicators"]
+    assert isinstance(spec, Partitioned)
+    assert spec.key == "table_id"
+
+    assert split_slug("seki_indicators") == ("seki_indicators", None)
+    assert split_slug("seki_indicators:TABEL1_1") == ("seki_indicators", "TABEL1_1")
+    assert split_slug("gdp_annual") == ("gdp_annual", None)
 
 
 def test_dataset_detail_breadcrumb_returns_to_datasets(client):
@@ -183,9 +230,21 @@ def test_datasets_page_declares_provenance_or_nothing(client):
 
 def _fake_cards():
     return [
-        {"title": "gdp_annual", "dataset": "gdp_annual", "queryable": True,
-         "source_id": "worldbank_gdp", "source_name": "World Bank GDP indicator",
+        {"title": "gdp_annual", "dataset": "gdp_annual", "slug": "gdp_annual",
+         "queryable": True, "source_id": "worldbank_gdp",
+         "source_name": "World Bank GDP indicator",
          "description": "GDP in current US dollars.", "kind": "api", "enabled": True},
+        # one SEKI statistical table — a dataset, not a source
+        {"title": "Uang Beredar dan Faktor-Faktor yang Mempengaruhinya",
+         "dataset": "seki_indicators", "slug": "seki_indicators:TABEL1_1",
+         "queryable": True, "source_id": "seki", "source_name": "SEKI",
+         "section": "I. UANG DAN BANK", "number": "I.1.",
+         "kind": "html", "enabled": True},
+        {"title": "Neraca Pembayaran Indonesia",
+         "dataset": "seki_indicators", "slug": "seki_indicators:TABEL5_1",
+         "queryable": True, "source_id": "seki", "source_name": "SEKI",
+         "section": "V. NERACA PEMBAYARAN", "number": "V.1.",
+         "kind": "html", "enabled": True},
         {"title": "bps_inflation", "dataset": None, "queryable": False,
          "source_id": "bps_inflation", "source_name": "BPS monthly inflation",
          "description": "Consumer price inflation, an Excel workbook.",
@@ -211,6 +270,35 @@ def test_search_matches_title_source_and_description():
     assert titles(q="nothing-matches-this") == []
 
 
+def test_search_finds_a_statistical_table_by_its_own_name():
+    """A reader looks for "Uang Beredar", not for `seki_indicators`. Listing the
+    source alone would bury all 108 of SEKI's tables behind an id nobody types.
+    """
+    from lake.api.catalog import filter_cards
+
+    cards = _fake_cards()
+    titles = lambda **kw: [c["title"] for c in filter_cards(cards, **kw)]  # noqa: E731
+
+    assert titles(q="uang beredar") == ["Uang Beredar dan Faktor-Faktor yang Mempengaruhinya"]
+    assert titles(q="neraca") == ["Neraca Pembayaran Indonesia"]
+    assert titles(q="I.1.") == ["Uang Beredar dan Faktor-Faktor yang Mempengaruhinya"]
+    assert titles(q="uang dan bank") == ["Uang Beredar dan Faktor-Faktor yang Mempengaruhinya"]
+
+
+def test_section_filter_narrows_to_one_subject_area():
+    from lake.api.catalog import filter_cards
+
+    cards = _fake_cards()
+    titles = lambda **kw: [c["title"] for c in filter_cards(cards, **kw)]  # noqa: E731
+
+    assert titles(section="V. NERACA PEMBAYARAN") == ["Neraca Pembayaran Indonesia"]
+    assert titles(section="I. UANG DAN BANK") == [
+        "Uang Beredar dan Faktor-Faktor yang Mempengaruhinya"
+    ]
+    # a card with no section is never matched by a section filter
+    assert "gdp_annual" not in titles(section="I. UANG DAN BANK")
+
+
 def test_filters_narrow_and_compose():
     from lake.api.catalog import filter_cards
 
@@ -218,14 +306,15 @@ def test_filters_narrow_and_compose():
     titles = lambda **kw: [c["title"] for c in filter_cards(cards, **kw)]  # noqa: E731
 
     assert titles(kind="file") == ["bps_inflation", "census_full"]
-    assert titles(status="queryable") == ["gdp_annual"]
     assert titles(status="raw") == ["bps_inflation", "census_full"]
     assert titles(status="paused") == ["census_full"]
+    assert len(titles(status="queryable")) == 3  # gdp_annual + two SEKI tables
     # search and filter compose rather than override each other
     assert titles(q="census", kind="file") == ["census_full"]
     assert titles(q="gdp", kind="file") == []
+    assert titles(q="neraca", section="I. UANG DAN BANK") == []
     # no filters is the identity
-    assert len(filter_cards(cards)) == 3
+    assert len(filter_cards(cards)) == 5
 
 
 def test_search_works_without_javascript(client):

@@ -1,13 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Datasets{% endblock %}
 
+{# A chip is a plain link carrying every *other* active filter, so chips compose
+   with the search box and with each other, and work with JavaScript off. #}
 {% macro chip(label, param, value, current) %}
   {%- set active = current == value -%}
   {%- set params = [] -%}
   {%- if q %}{% set _ = params.append('q=' ~ (q | urlencode)) %}{% endif -%}
-  {%- if param != 'kind' and kind %}{% set _ = params.append('kind=' ~ kind) %}{% endif -%}
-  {%- if param != 'status' and status %}{% set _ = params.append('status=' ~ status) %}{% endif -%}
-  {%- if value %}{% set _ = params.append(param ~ '=' ~ value) %}{% endif -%}
+  {%- if param != 'kind' and kind %}{% set _ = params.append('kind=' ~ (kind | urlencode)) %}{% endif -%}
+  {%- if param != 'status' and status %}{% set _ = params.append('status=' ~ (status | urlencode)) %}{% endif -%}
+  {%- if param != 'section' and section %}{% set _ = params.append('section=' ~ (section | urlencode)) %}{% endif -%}
+  {%- if value %}{% set _ = params.append(param ~ '=' ~ (value | urlencode)) %}{% endif -%}
   <a class="chip {{ 'chip-on' if active }}"
      href="/datasets{% if params %}?{{ params | join('&') }}{% endif %}"
      {% if active %}aria-current="true"{% endif %}>{{ label }}</a>
@@ -20,9 +23,9 @@
       <p class="eyebrow">Datasets</p>
       <h1 class="hero-title">Everything the lake collects.</h1>
       <p class="hero-lead">
-        Each card is one source we collect on a schedule. Some are already published as
-        typed, queryable datasets; the rest are archived as raw bytes, waiting for a
-        transform. Everything here is read-only.
+        Each card is one dataset — a statistical table you can open, query, and export.
+        A single source may publish many: Bank Indonesia's SEKI contributes over a
+        hundred on its own. Everything here is read-only.
       </p>
     </div>
   </section>
@@ -58,20 +61,22 @@
          same. htmx only upgrades it to swap the grid in place as you type. #}
       <form class="finder" action="/datasets" method="get" role="search"
             hx-get="/datasets/cards" hx-target="#cards" hx-swap="innerHTML"
-            hx-trigger="submit, input from:#q delay:200ms, change from:#kind, change from:#status"
+            hx-trigger="submit, input from:#q delay:200ms, change from:#section, change from:#status"
             hx-push-url="true" hx-indicator="#searching">
         <div class="field finder-search">
           <label for="q">Search datasets</label>
           <input id="q" name="q" type="search" value="{{ q }}" autocomplete="off"
-                 placeholder="Try “inflation”, “GDP”, or “census”">
+                 placeholder="Try “uang beredar”, “inflation”, “GDP”, or “I.1”">
         </div>
 
+        {# Sections carry more signal than `kind` now: three source types across
+           a hundred-odd datasets, but nine subject areas. `kind` stays as a chip. #}
         <div class="field">
-          <label for="kind">Source type</label>
-          <select id="kind" name="kind">
-            <option value="">All types</option>
-            {% for k in kinds %}
-            <option value="{{ k }}" {{ 'selected' if kind == k }}>{{ k }}</option>
+          <label for="section">Subject area</label>
+          <select id="section" name="section">
+            <option value="">All subjects</option>
+            {% for s in sections %}
+            <option value="{{ s }}" {{ 'selected' if section == s }}>{{ s | title }}</option>
             {% endfor %}
           </select>
         </div>
@@ -85,6 +90,10 @@
             <option value="paused" {{ 'selected' if status == 'paused' }}>Paused</option>
           </select>
         </div>
+
+        {# `kind` is still a filter; the chips below set it. Carried along so a
+           search does not silently drop the chip the reader just clicked. #}
+        <input type="hidden" name="kind" value="{{ kind }}">
 
         {# The submit button is what makes this work with JavaScript disabled. #}
         <button type="submit" class="btn" data-variant="primary">Search</button>

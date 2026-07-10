@@ -504,10 +504,40 @@ a.tile:hover { transform: translateY(-1px); }
 }
 .dcard:hover { border-color: var(--muted-foreground); transform: translateY(-1px); }
 .dcard header { display: flex; flex-direction: column; gap: 0.25rem; }
-.dcard-title { font-size: 1.25rem; font-weight: 400; margin: 0;
-  word-break: break-word; }
+.dcard-title { font-size: 1.125rem; font-weight: 400; margin: 0;
+  word-break: break-word; line-height: 1.35; }
+/* The whole card is a target, but only the title is the link — a card-wide
+   anchor would swallow the "View" button and the section link inside it. */
+.dcard-title a { color: var(--foreground); text-decoration: none; }
+.dcard:hover .dcard-title a { color: var(--primary); }
+.dcard-title a:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .dcard-source { font-size: 0.75rem; letter-spacing: 0.32px;
   color: var(--muted-foreground); margin: 0; }
+.dcard-number { font-family: var(--font-mono); color: var(--primary);
+  margin-right: 0.25rem; }
+
+/* --- dataset detail ------------------------------------------------------- */
+.detail-number { font-family: var(--font-mono); font-size: 0.875rem;
+  color: var(--primary); margin: 0 0 0.5rem; letter-spacing: 0.16px; }
+.detail-title { font-size: 2.625rem; font-weight: 300; line-height: 1.2;
+  letter-spacing: 0; margin: 0; max-width: 22ch; }
+
+/* the column list on a detail page: same hairline cells as the card grid, but
+   each cell draws its own rules so a partial last row shows no grey slab */
+.schema-list { display: grid; gap: 0;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
+.schema-col { background: var(--background); padding: 0.75rem 1rem;
+  display: flex; flex-direction: column; gap: 0.125rem; min-width: 0;
+  border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.schema-name { font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; }
+.schema-type { font-size: 0.6875rem; letter-spacing: 0.32px;
+  color: var(--muted-foreground); }
+
+@media (max-width: 672px) {
+  .detail-title { font-size: 1.875rem; }
+  .schema-list { grid-template-columns: 1fr 1fr; }
+}
 .dcard-desc { margin: 0; font-size: 0.875rem; line-height: 1.5;
   color: var(--muted-foreground); flex: 1; }
 

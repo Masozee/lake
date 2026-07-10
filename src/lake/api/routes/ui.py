@@ -126,36 +126,38 @@ def page_tables(request: Request) -> HTMLResponse:
     )
 
 
-def _cards_context(q: str, kind: str, status: str) -> dict:
+def _cards_context(q: str, kind: str, status: str, section: str = "") -> dict:
     """Shared by the full page and the htmx fragment, so both filter identically."""
     cards = catalog.dataset_cards(_sources())
     return {
-        "cards": catalog.filter_cards(cards, q=q, kind=kind, status=status),
+        "cards": catalog.filter_cards(cards, q=q, kind=kind, status=status, section=section),
         "total": len(cards),
         "kinds": sorted({c["kind"] for c in cards if c["kind"]}),
+        "sections": sorted({c["section"] for c in cards if c["section"]}),
         "q": q,
         "kind": kind,
         "status": status,
+        "section": section,
     }
 
 
 @router.get("/datasets", response_class=HTMLResponse)
 def page_datasets(
-    request: Request, q: str = "", kind: str = "", status: str = ""
+    request: Request, q: str = "", kind: str = "", status: str = "", section: str = ""
 ) -> HTMLResponse:
     """Everything the lake collects, searchable.
 
     Filters live in the query string, so a filtered view is a link you can send
     someone, and the form still works with JavaScript off.
     """
-    context = _cards_context(q, kind, status)
+    context = _cards_context(q, kind, status, section)
     context.update({"page": "datasets", "stats": _stats()})
     return _TEMPLATES.TemplateResponse(request, "datasets.html", context)
 
 
 @router.get("/datasets/cards", response_class=HTMLResponse)
 def htmx_dataset_cards(
-    request: Request, q: str = "", kind: str = "", status: str = ""
+    request: Request, q: str = "", kind: str = "", status: str = "", section: str = ""
 ) -> HTMLResponse:
     """The card grid alone, for htmx to swap in as the reader types.
 
@@ -164,12 +166,73 @@ def htmx_dataset_cards(
     page back, not a bare grid with no nav. htmx would otherwise push the URL it
     actually fetched, so the page URL is handed back in `HX-Push-Url`.
     """
-    query = urlencode({k: v for k, v in (("q", q), ("kind", kind), ("status", status)) if v})
+    filters = (("q", q), ("kind", kind), ("status", status), ("section", section))
+    query = urlencode({k: v for k, v in filters if v})
     response = _TEMPLATES.TemplateResponse(
-        request, "_dataset_cards.html", _cards_context(q, kind, status)
+        request, "_dataset_cards.html", _cards_context(q, kind, status, section)
     )
     response.headers["HX-Push-Url"] = f"/datasets?{query}" if query else "/datasets"
     return response
+
+
+@router.get("/dataset/{slug}", response_class=HTMLResponse)
+def page_dataset(request: Request, slug: str) -> HTMLResponse:
+    """One dataset: a whole table, or one statistical table inside a collection.
+
+    `gdp_annual` and `seki_indicators:TABEL1_1` are both datasets a reader can
+    browse; only the second is a slice of a shared DuckDB table.
+    """
+    try:
+        dataset = catalog.describe_dataset(slug)
+        sample = catalog.dataset_sample(slug)
+        series = catalog.dataset_series(slug)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail="no serving replica built yet") from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc).strip("\"'")) from exc
+
+    source = next((s for s in _sources() if s["source_id"] == dataset.get("source_id")), None)
+    return _TEMPLATES.TemplateResponse(
+        request,
+        "dataset_detail.html",
+        {
+            "page": "datasets",
+            "dataset": dataset,
+            "sample": sample,
+            "series": _spark(series),
+            "source": source,
+        },
+    )
+
+
+def _spark(points: list[dict]) -> dict | None:
+    """A tiny SVG path for the detail page's headline chart.
+
+    Same shape as the landing page's, so `.chart` styles it identically. None
+    when there is nothing meaningful to draw.
+    """
+    if len(points) < 2:
+        return None
+    values = [p["value"] for p in points]
+    low, high = min(values), max(values)
+    span = (high - low) or 1.0
+    width, height = 640, 160
+    step = width / (len(points) - 1)
+    coords = [
+        (round(i * step, 2), round(height - (v - low) / span * height, 2))
+        for i, v in enumerate(values)
+    ]
+    line = "M" + " L".join(f"{x},{y}" for x, y in coords)
+    return {
+        "line": line,
+        "area": f"{line} L{width},{height} L0,{height} Z",
+        "width": width,
+        "height": height,
+        "first_period": points[0]["period"],
+        "last_period": points[-1]["period"],
+        "last_value": values[-1],
+        "points": len(points),
+    }
 
 
 @router.get("/about", response_class=HTMLResponse)

@@ -208,7 +208,7 @@ def transform_seki(
 
     if not records:
         raise RuntimeError("seki: parsed zero observations from the newest run")
-    log.info("transform.parsed", tables=len(records), skipped=len(skipped))
+    log.info("transform.parsed", observations=len(records), skipped_tables=len(skipped))
 
     dataset_id = "seki_indicators"
     final_dir = settings.processed_root / f"dataset={dataset_id}"
