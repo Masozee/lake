@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 .PHONY: help install migrate test lint fmt dash doctor deploy enable timers logs \
-        serve-build serve
+        serve-build serve web web-install web-build web-check
 
 help:  ## show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -27,16 +27,42 @@ fmt:  ## autoformat and autofix
 dash:  ## run the dashboard locally (localhost only)
 	uv run streamlit run dashboard/app.py --server.address 127.0.0.1
 
-# --- serving API + htmx UI ---------------------------------------------------
+# --- serving API -------------------------------------------------------------
 
 serve-build:  ## materialise the read-only serving replica from processed/
 	uv run lake serve build
 
-serve:  ## run the API + htmx UI (one process, localhost only) on :8000
+serve:  ## run the API (localhost only) on :8000 — the frontend needs this
 	uv run lake serve run
 
 doctor:  ## preflight: NAS, database, registry, alerting
 	uv run lake doctor
+
+# --- admin panel -------------------------------------------------------------
+# There is no web sign-up, by design: a panel that can create its own first admin
+# is a panel a stranger can claim. The first account needs shell access.
+
+admin-user:  ## create the first admin (prompts for a password)
+	@read -p "email: " email; uv run lake admin create-user "$$email"
+
+admin-users:  ## list the admins
+	uv run lake admin list-users
+
+# --- frontend (web/) ---------------------------------------------------------
+# The TanStack Start app. It talks to the API above and to nothing else, so
+# `make serve` has to be running in another terminal for any page to have data.
+
+web-install:  ## install the frontend's dependencies
+	cd web && bun install
+
+web:  ## run the frontend on :3000 (needs `make serve` in another terminal)
+	cd web && bun run dev
+
+web-build:  ## production build of the frontend
+	cd web && bun run build
+
+web-check:  ## typecheck + lint the frontend
+	cd web && bun run typecheck && bun run lint
 
 # --- deployment (run on the NUC) ---------------------------------------------
 

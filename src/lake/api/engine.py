@@ -123,9 +123,14 @@ def build_replica(path: Path | None = None) -> dict[str, int]:
 
             pattern = str(dataset_dir / "**" / "*.parquet")
             # The builder HAS filesystem access; this is the one place it is used.
+            #
+            # `EXCLUDE (dataset)`: hive partitioning turns the `dataset=` directory
+            # name into a column, which then says "observations" on all 987,860 rows
+            # of the table already called observations. The real dataset each row
+            # belongs to is `dataset_id`, written by the transform.
             con.execute(
                 f'CREATE OR REPLACE TABLE {SCHEMA}."{dataset_id}" AS '
-                f"SELECT * FROM read_parquet(?, hive_partitioning = true)",
+                f"SELECT * EXCLUDE (dataset) FROM read_parquet(?, hive_partitioning = true)",
                 [pattern],
             )
             rows = scalar(con.execute(f'SELECT count(*) FROM {SCHEMA}."{dataset_id}"'))
@@ -300,6 +305,7 @@ def run_query(
 
 def stream_batches(
     sql: str,
+    params: list[Any] | None = None,
     *,
     batch_rows: int = 8192,
     max_rows: int = MAX_ROW_LIMIT,
@@ -311,13 +317,16 @@ def stream_batches(
     asking for a million rows never causes a million rows to exist in this
     process's memory at once.
 
+    `params` are bound, never interpolated — an export carries the same filters as
+    the page it was downloaded from, and those come from a caller.
+
     The deadline covers the entire stream, not just the initial execute — a query
     that produces its first batch quickly and then stalls is still cancelled.
     """
     cursor = serving().cursor()
     try:
         with _deadline(cursor, timeout):
-            reader = cursor.execute(sql).to_arrow_reader(batch_rows)
+            reader = cursor.execute(sql, params or []).to_arrow_reader(batch_rows)
             columns: list[str] | None = None
             emitted = 0
 

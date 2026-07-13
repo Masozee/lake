@@ -454,5 +454,96 @@ def doctor() -> None:
     raise typer.Exit(1 if problems else 0)
 
 
+# -- admin panel --------------------------------------------------------------
+#
+# The bootstrap has to live here rather than on the web. A panel that can create
+# its own first admin is a panel a stranger can claim; requiring shell access to
+# make the first account is what makes that impossible.
+
+admin_app = typer.Typer(no_args_is_help=True, help="Admin panel users.")
+app.add_typer(admin_app, name="admin")
+
+
+@admin_app.command("create-user")
+def admin_create_user(
+    email: str = typer.Argument(..., help="the admin's email address"),
+    name: str = typer.Option("", "--name", help="display name; defaults to the email"),
+) -> None:
+    """Create an admin. Prompts for the password — it is never a CLI argument.
+
+    A password passed as an argument lands in the shell history, in `ps` output,
+    and in any log that records the command line. Prompting is not a nicety.
+    """
+    from lake.api.admin import auth
+
+    password = typer.prompt("Password", hide_input=True, confirmation_prompt=True)
+    try:
+        auth.create_user(email, name, password)
+    except ValueError as exc:
+        typer.secho(str(exc), fg="red")
+        raise typer.Exit(1) from exc
+
+    typer.secho(f"created admin {email}", fg="green")
+
+
+@admin_app.command("list-users")
+def admin_list_users() -> None:
+    """Every admin, and whether they can still log in."""
+    from sqlalchemy import select
+
+    from lake.metadata.models import User
+    from lake.metadata.session import session_scope
+
+    with session_scope() as s:
+        users = s.scalars(select(User).order_by(User.created_at)).all()
+
+    if not users:
+        typer.secho("no admins yet — run `lake admin create-user <email>`", fg="yellow")
+        return
+
+    for user in users:
+        state = "active" if user.is_active else "disabled"
+        seen = user.last_login_at.strftime("%Y-%m-%d %H:%M") if user.last_login_at else "never"
+        typer.echo(f"{user.email:40s} {state:9s} last login: {seen}")
+
+
+@admin_app.command("reset-password")
+def admin_reset_password(email: str = typer.Argument(...)) -> None:
+    """Set a new password for an admin, and sign them out everywhere.
+
+    The way back in when someone is locked out. Needs shell access, by design.
+    """
+    from sqlalchemy import select
+
+    from lake.api.admin import auth
+    from lake.metadata.models import User
+    from lake.metadata.session import session_scope
+
+    password = typer.prompt("New password", hide_input=True, confirmation_prompt=True)
+
+    with session_scope() as s:
+        user = s.scalar(select(User).where(User.email == email.strip().lower()))
+        if user is None:
+            typer.secho(f"no admin with email {email!r}", fg="red")
+            raise typer.Exit(1)
+        try:
+            user.password_hash = auth.hash_password(password)
+        except ValueError as exc:
+            typer.secho(str(exc), fg="red")
+            raise typer.Exit(1) from exc
+        user_id = user.user_id
+
+    auth.revoke_all(user_id)
+    typer.secho(f"password reset for {email}; all sessions revoked", fg="green")
+
+
+@admin_app.command("sweep-sessions")
+def admin_sweep_sessions() -> None:
+    """Delete expired session rows. Housekeeping — `resolve` already refuses them."""
+    from lake.api.admin import auth
+
+    typer.secho(f"deleted {auth.sweep_expired()} expired session(s)", fg="green")
+
+
 if __name__ == "__main__":  # pragma: no cover
     sys.exit(app())

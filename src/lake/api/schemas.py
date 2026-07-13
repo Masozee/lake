@@ -2,24 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, Field
-
-from lake.api.engine import DEFAULT_ROW_LIMIT, MAX_ROW_LIMIT
-
-
-class QueryRequest(BaseModel):
-    sql: str = Field(min_length=1, description="a single read-only SELECT")
-    limit: int = Field(default=DEFAULT_ROW_LIMIT, ge=1, le=MAX_ROW_LIMIT)
-
-
-class QueryResponse(BaseModel):
-    columns: list[str]
-    rows: list[list[Any]]
-    row_count: int
-    truncated: bool
-    elapsed_ms: float
 
 
 class ColumnInfo(BaseModel):

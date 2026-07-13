@@ -9,19 +9,15 @@ exactly like the dashboard. The API is read-only, but the data is still yours.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from lake.api import engine
 from lake.api.middleware import RateLimitMiddleware
-from lake.api.routes import ai, data, ui
+from lake.api.routes import admin, ai, data, ui_json
 from lake.core.logging import configure, get_logger
 from lake.settings import get_settings
-
-_STATIC = Path(__file__).resolve().parent / "static"
 
 log = get_logger("lake.api")
 
@@ -75,13 +71,17 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # This app is now the API and nothing else. The website is a separate TanStack
+    # Start app in web/, which reaches these routes over a proxy — so there are no
+    # HTML pages, no templates, and no static assets served from here.
     app.include_router(data.router, prefix="/api", tags=["data"])
     app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
-
-    # The htmx UI (pages + fragments) and its vendored assets. Same origin as the
-    # API, so no CORS and no separate server — one process serves everything.
-    app.mount("/static", StaticFiles(directory=str(_STATIC)), name="static")
-    app.include_router(ui.router, tags=["ui"])
+    # View-shaped JSON for the frontend. Separate from /api/* because it answers
+    # "what can a reader open", not "what tables exist".
+    app.include_router(ui_json.router, prefix="/api/ui", tags=["ui"])
+    # The admin panel. The only router here that writes, and the only one behind a
+    # login. Its rate-limit tier is the strictest — see middleware._tier_for.
+    app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 
     @app.get("/api/health")
     def health() -> dict:

@@ -23,6 +23,10 @@ build/
 .coverage
 htmlcov/
 
+# Backups the admin panel takes before it overwrites configs/sources.yaml. They
+# are an undo button on one machine, not history — git already is the history.
+configs/backups/
+
 # local data — the lake lives on the NAS, never in git
 data/
 *.duckdb

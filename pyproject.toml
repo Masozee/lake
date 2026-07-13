@@ -38,7 +38,7 @@ dashboard = [
     "streamlit>=1.36",
     "pandas>=2.2",
 ]
-# Read-only serving API, htmx UI, exports, and AI exploration.
+# Read-only serving API, exports, AI exploration, and the admin panel.
 api = [
     "duckdb>=1.5",
     "pyarrow>=16.0",
@@ -48,6 +48,10 @@ api = [
     "jinja2>=3.1",
     "python-multipart>=0.0.9",
     "openpyxl>=3.1",
+    # Admin auth. Argon2id is the current password-hashing recommendation (OWASP,
+    # and the PHC winner); it is memory-hard, so a stolen hash does not fall to a
+    # GPU the way PBKDF2 and bcrypt increasingly do.
+    "argon2-cffi>=23.1",
 ]
 dev = [
     "pytest>=8.2",

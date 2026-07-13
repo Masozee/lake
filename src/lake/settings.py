@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     #: comma-separated list of allowed CORS origins for the frontend
     api_cors_origins: str = "http://localhost:3000,http://localhost:5173"
 
+    #: Where this API answers from, as the outside world reaches it. This is what
+    #: goes into the copy-paste snippets on a dataset page, so it has to be the URL
+    #: a reader can actually curl — not the one the frontend uses to reach us over
+    #: the loopback. Behind a reverse proxy the two are different, and a snippet
+    #: that says `127.0.0.1` is a snippet that works on exactly one machine.
+    api_public_url: str = "http://localhost:8000"
+
     # Rate limiting
     api_rate_limit_enabled: bool = True
     #: comma-separated IPs whose X-Forwarded-For we trust (your reverse proxy).
@@ -54,6 +61,10 @@ class Settings(BaseSettings):
     api_rate_catalog_per_min: int = 120
     api_rate_query_per_min: int = 30
     api_rate_ai_per_min: int = 6
+    #: The admin login. Tight on purpose: it is the one endpoint an attacker can
+    #: call in a loop for free, and a password worth guessing is worth guessing
+    #: slowly. Ten a minute is generous for a human and useless for a dictionary.
+    api_rate_login_per_min: int = 10
 
     # source registry
     sources_config: Path = Field(default=Path("configs/sources.yaml"))

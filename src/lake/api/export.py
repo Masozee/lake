@@ -19,6 +19,7 @@ from __future__ import annotations
 import csv
 import io
 from collections.abc import Iterator
+from typing import Any
 
 from lake.api import engine
 
@@ -35,7 +36,9 @@ def _cell(value: object) -> object:
     return str(value)
 
 
-def stream_csv(sql: str, *, max_rows: int = EXPORT_MAX_ROWS) -> Iterator[bytes]:
+def stream_csv(
+    sql: str, params: list[Any] | None = None, *, max_rows: int = EXPORT_MAX_ROWS
+) -> Iterator[bytes]:
     """Yield a CSV file as UTF-8 bytes, one flush per batch.
 
     Prefixed with a UTF-8 BOM so Excel on Windows opens accented text correctly —
@@ -48,7 +51,7 @@ def stream_csv(sql: str, *, max_rows: int = EXPORT_MAX_ROWS) -> Iterator[bytes]:
     header_written = False
 
     for columns, rows in engine.stream_batches(
-        sql, batch_rows=8192, max_rows=max_rows, timeout=EXPORT_TIMEOUT
+        sql, params, batch_rows=8192, max_rows=max_rows, timeout=EXPORT_TIMEOUT
     ):
         if not header_written:
             writer.writerow(columns)
@@ -66,7 +69,9 @@ def stream_csv(sql: str, *, max_rows: int = EXPORT_MAX_ROWS) -> Iterator[bytes]:
         yield b""
 
 
-def build_xlsx(sql: str, *, max_rows: int = EXPORT_MAX_ROWS) -> bytes:
+def build_xlsx(
+    sql: str, params: list[Any] | None = None, *, max_rows: int = EXPORT_MAX_ROWS
+) -> bytes:
     """Build an .xlsx in memory with openpyxl's streaming writer.
 
     Returns the whole file — xlsx is a zip finalised at save() and cannot be
@@ -80,7 +85,7 @@ def build_xlsx(sql: str, *, max_rows: int = EXPORT_MAX_ROWS) -> bytes:
     header_written = False
 
     for columns, rows in engine.stream_batches(
-        sql, batch_rows=8192, max_rows=max_rows, timeout=EXPORT_TIMEOUT
+        sql, params, batch_rows=8192, max_rows=max_rows, timeout=EXPORT_TIMEOUT
     ):
         if not header_written:
             sheet.append(list(columns))

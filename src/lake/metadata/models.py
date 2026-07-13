@@ -266,3 +266,111 @@ class Dataset(Base):
     built_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+# --- the admin panel ---------------------------------------------------------
+#
+# Everything below exists only so the admin panel can exist. The data pipeline
+# neither reads nor writes any of it: a lake with no users still scrapes, still
+# transforms, still serves. Deleting these three tables would break the panel and
+# nothing else.
+
+
+class User(Base):
+    """An admin. There is no self-service signup, by design.
+
+    The first user is created with `lake admin create-user`, which needs shell
+    access on the server — so no stranger who finds the panel can hand themselves
+    an account. Existing admins can create more from the web.
+
+    `password_hash` is Argon2id. The plaintext is never stored, never logged, and
+    never leaves the request that carried it.
+    """
+
+    __tablename__ = "users"
+
+    # Generated in Python, like every other UUID key here — so the id exists
+    # before the INSERT and no table needs a pgcrypto default.
+    user_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    email: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    display_name: Mapped[str] = mapped_column(Text, nullable=False)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    #: A disabled user keeps their row (so the audit log still resolves their name)
+    #: but cannot log in, and their sessions are revoked.
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    sessions: Mapped[list[UserSession]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
+
+
+class UserSession(Base):
+    """A logged-in browser.
+
+    The row stores a SHA-256 of the session token, never the token. The cookie
+    holds the only copy of the real thing. So a dump of this table — a stray
+    backup, a `SELECT *` in a log — hands an attacker nothing they can replay.
+
+    Sessions live in the database rather than in a signed cookie precisely so that
+    revoking one actually revokes it: disabling a user deletes their rows and they
+    are logged out everywhere, immediately.
+    """
+
+    __tablename__ = "user_sessions"
+
+    session_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False
+    )
+    #: sha256 of the token in the cookie. Unique so a lookup is one index hit.
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: Best-effort provenance, for the "your sessions" list. Never trusted for auth.
+    user_agent: Mapped[str | None] = mapped_column(Text)
+    ip: Mapped[str | None] = mapped_column(Text)
+
+    user: Mapped[User] = relationship(back_populates="sessions")
+
+    __table_args__ = (Index("ix_user_sessions_expires_at", "expires_at"),)
+
+
+class AuditLog(Base):
+    """Who changed what, and what it looked like before.
+
+    The panel can edit `configs/sources.yaml`, which is a git-tracked file that
+    normally changes only through review. Editing it from a browser bypasses that,
+    so this table is what replaces the commit: it records the actor, the action,
+    and the full previous content. Without it, a bad edit at 3am has no diff and
+    no author — which is exactly the failure this project is built to avoid.
+
+    `user_id` is nullable and ON DELETE SET NULL: the log outlives the account, so
+    deleting a user never erases what they did.
+    """
+
+    __tablename__ = "audit_log"
+
+    entry_id: Mapped[uuid.UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.user_id", ondelete="SET NULL")
+    )
+    #: Denormalised on purpose — survives the user row being deleted.
+    actor_email: Mapped[str] = mapped_column(Text, nullable=False)
+    #: e.g. "sources.update", "user.create", "user.disable", "source.toggle"
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+    #: What was acted on: a source_id, a user email, or the config path.
+    target: Mapped[str | None] = mapped_column(Text)
+    #: Whatever the action needs to be reconstructible. For a YAML edit this holds
+    #: the previous file content and the path of the backup it was written to.
+    detail: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    occurred_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    __table_args__ = (Index("ix_audit_log_occurred_at", "occurred_at"),)

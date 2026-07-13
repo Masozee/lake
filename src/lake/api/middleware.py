@@ -17,10 +17,21 @@ log = get_logger(__name__)
 
 def _tier_for(path: str) -> str:
     """Which bucket a request draws from. AI is the strict, expensive one."""
+    # The login form is the one endpoint an attacker can call in a loop for free.
+    # Its own tier, and a tight one: a password worth guessing is worth guessing
+    # slowly. Everything else under /api/admin needs a session anyway.
+    if path == "/api/admin/login":
+        return "login"
     if path.startswith("/api/ai"):
         return "ai"
-    # exports scan a whole table; count them as query-tier even under /api/tables
-    if path.startswith("/api/query") or path.endswith((".csv", ".xlsx")):
+    # Reads that touch the rows themselves: a filtered page, an aggregation, a CSV of
+    # the lot. They scan a table; describing one does not — and that is exactly the
+    # /api/data ÷ /api/tables line, which is why the two live under different prefixes.
+    #
+    # An export is not a separate path any more (it is `/rows` asked for as CSV), so
+    # there is no file extension to key off. There does not need to be: it is the same
+    # scan either way, and the tier is about cost, not about content type.
+    if path.startswith("/api/data"):
         return "query"
     return "catalog"
 
@@ -34,6 +45,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 "catalog": Limit(settings.api_rate_catalog_per_min, 60),
                 "query": Limit(settings.api_rate_query_per_min, 60),
                 "ai": Limit(settings.api_rate_ai_per_min, 60),
+                "login": Limit(settings.api_rate_login_per_min, 60),
             }
         )
         self._trusted = trusted_proxies

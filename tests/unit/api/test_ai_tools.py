@@ -14,15 +14,16 @@ pytestmark = pytest.mark.integration
 def test_list_tables_tool(replica):
     from lake.api.ai.tools import dispatch
 
-    assert dispatch("list_tables", {}) == {"tables": ["gdp_annual"]}
+    # One table: every source lands in the merged `observations`.
+    assert dispatch("list_tables", {}) == {"tables": ["observations"]}
 
 
 def test_describe_tool(replica):
     from lake.api.ai.tools import dispatch
 
-    result = dispatch("describe_table", {"table": "gdp_annual"})
-    assert result["row_count"] == 5
-    assert any(c["name"] == "gdp_usd" for c in result["columns"])
+    result = dispatch("describe_table", {"table": "observations"})
+    assert result["row_count"] == 10  # 5 World Bank rows + 5 SEKI
+    assert any(c["name"] == "value" for c in result["columns"])
 
 
 def test_run_sql_tool_aggregates(replica):
@@ -32,7 +33,7 @@ def test_run_sql_tool_aggregates(replica):
         "run_sql",
         {
             "sql": (
-                "SELECT country_iso3, sum(gdp_usd) g FROM lake.gdp_annual "
+                "SELECT series_code, sum(value) g FROM lake.observations "
                 "GROUP BY 1 ORDER BY g DESC NULLS LAST"
             )
         },
@@ -43,7 +44,7 @@ def test_run_sql_tool_aggregates(replica):
 def test_run_sql_respects_the_ai_row_cap(replica):
     from lake.api.ai import tools
 
-    result = tools.dispatch("run_sql", {"sql": "SELECT * FROM lake.gdp_annual", "limit": 999999})
+    result = tools.dispatch("run_sql", {"sql": "SELECT * FROM lake.observations", "limit": 999999})
     # capped at AI_MAX_LIMIT regardless of what the model asks for
     assert result["row_count"] <= tools.AI_MAX_LIMIT
 
@@ -51,15 +52,15 @@ def test_run_sql_respects_the_ai_row_cap(replica):
 @pytest.mark.parametrize(
     "sql",
     [
-        "DELETE FROM lake.gdp_annual",
-        "DROP TABLE lake.gdp_annual",
-        "UPDATE lake.gdp_annual SET gdp_usd = 0",
+        "DELETE FROM lake.observations",
+        "DROP TABLE lake.observations",
+        "UPDATE lake.observations SET value = 0",
         "SELECT * FROM read_csv('/etc/passwd')",
         "PRAGMA database_list",
         "COPY (SELECT 1) TO '/tmp/x.csv'",
         "ATTACH '/tmp/e.db' AS e",
         "INSTALL httpfs",
-        "SELECT 1; DROP TABLE lake.gdp_annual",
+        "SELECT 1; DROP TABLE lake.observations",
     ],
 )
 def test_the_model_cannot_escape_read_only(replica, sql):

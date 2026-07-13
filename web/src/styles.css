@@ -1,0 +1,1100 @@
+@import "tailwindcss";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/ibm-plex-sans";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* IBM Carbon. Every value below is Carbon's, not a guess: the greys are its
+   neutral ramp, the blue is Blue 60, and the radius is zero because Carbon does
+   not round. The htmx UI this replaced used exactly these tokens — the design is
+   the same design, only the renderer changed. */
+:root {
+  --carbon-blue: #0f62fe;
+  --carbon-blue-60: #0043ce;
+  --carbon-blue-80: #002d9c;
+  --carbon-blue-hover: #0050e6;
+
+  --carbon-ink: #161616;
+  --carbon-ink-muted: #525252;
+  --carbon-ink-subtle: #8c8c8c;
+
+  --carbon-canvas: #ffffff;
+  --carbon-surface-1: #f4f4f4;
+  --carbon-surface-2: #e0e0e0;
+  --carbon-hairline: #e0e0e0;
+
+  --carbon-inverse-canvas: #161616;
+  --carbon-inverse-surface-1: #262626;
+  --carbon-inverse-ink: #ffffff;
+  --carbon-inverse-ink-muted: #c6c6c6;
+
+  --carbon-success: #24a148;
+  --carbon-warning: #f1c21b;
+  --carbon-error: #da1e28;
+
+  /* Red, as *text*. Red 60 clears AA on white (5.0:1) but not on charcoal
+     (3.6:1), so the dark theme overrides this to Red 50 (5.4:1). Use this
+     anywhere red words sit on the page background; `--carbon-error` stays the
+     literal Red 60 for borders and fills, where the contrast rule is different. */
+  --danger-ink: #da1e28;
+
+  --background: var(--carbon-canvas);
+  --foreground: var(--carbon-ink);
+  --card: var(--carbon-canvas);
+  --card-foreground: var(--carbon-ink);
+  --popover: var(--carbon-canvas);
+  --popover-foreground: var(--carbon-ink);
+  --primary: var(--carbon-blue);
+  --primary-foreground: #ffffff;
+  --secondary: var(--carbon-ink);
+  --secondary-foreground: var(--carbon-inverse-ink);
+  --muted: var(--carbon-surface-1);
+  --muted-foreground: var(--carbon-ink-muted);
+  --accent: var(--carbon-surface-1);
+  --accent-foreground: var(--carbon-ink);
+  --destructive: var(--carbon-error);
+  --destructive-foreground: #ffffff;
+  --border: var(--carbon-hairline);
+  --input: var(--carbon-hairline);
+  --ring: var(--carbon-blue);
+
+  /* The brand is flat. Carbon never rounds. */
+  --radius: 0px;
+
+  /* The admin sidebar. Carbon's UI shell is a *dark* rail in both themes — the
+     panel is a tool, and the rail is chrome, not content. Keeping it charcoal on
+     a white page is what makes the content area read as the thing you are working
+     on rather than one more panel among several. */
+  --sidebar: var(--carbon-inverse-canvas);
+  --sidebar-foreground: var(--carbon-inverse-ink-muted);
+  --sidebar-accent: var(--carbon-inverse-surface-1);
+  --sidebar-accent-foreground: var(--carbon-inverse-ink);
+  --sidebar-border: #393939;
+  --sidebar-ring: #4589ff;
+  /* Blue 60, because this is a *fill* with white text on it (the avatar), not blue
+     text on charcoal. White on Blue 50 is 3.35:1 — below AA. The same split shows
+     up everywhere in this app: a fill needs a dark ink under white, while blue
+     *text* on charcoal needs the lighter Blue 50 to clear the ground it sits on. */
+  --sidebar-primary: #0f62fe;
+  --sidebar-primary-foreground: #ffffff;
+  /* Blue 50 — the lighter one — for anything that is blue *text* on the rail. */
+  --sidebar-accent-ink: #4589ff;
+
+  --font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Carbon's "productive" easing. */
+  --ease-productive: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --ease-entrance: cubic-bezier(0, 0, 0.38, 0.9);
+}
+
+.dark {
+  --background: var(--carbon-inverse-canvas);
+  --foreground: var(--carbon-inverse-ink);
+  --card: var(--carbon-inverse-surface-1);
+  --card-foreground: var(--carbon-inverse-ink);
+  --popover: var(--carbon-inverse-surface-1);
+  --popover-foreground: var(--carbon-inverse-ink);
+  --primary: #4589ff; /* Blue 50: #0f62fe fails contrast on #161616 */
+  --primary-foreground: #ffffff;
+  --secondary: #393939;
+  --secondary-foreground: var(--carbon-inverse-ink);
+  --muted: var(--carbon-inverse-surface-1);
+  --muted-foreground: var(--carbon-inverse-ink-muted);
+  --accent: #393939;
+  --accent-foreground: var(--carbon-inverse-ink);
+  --border: #393939;
+  --input: #393939;
+  --ring: #4589ff;
+  /* Red 50. Red 60 is only 3.6:1 on charcoal — below AA. */
+  --danger-ink: #fa4d56;
+}
+
+/* Hand the tokens to Tailwind so `bg-background`, `text-muted-foreground`, and
+   `font-mono` resolve to the Carbon values rather than shadcn's zinc defaults. */
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* Kill every rounding and shadow shadcn ships. The flat square is the brand. */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+html {
+  font-family: var(--font-sans);
+  scroll-behavior: smooth;
+}
+
+/* the topbar is sticky, so anchor targets must not land underneath it */
+[id] { scroll-margin-top: 4rem; }
+
+body {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0.16px; /* Carbon precision detail -- do not remove */
+  margin: 0;
+}
+
+/* --- layout helpers ------------------------------------------------------ */
+.wrap { max-width: 66rem; margin: 0 auto; padding: 0 0 4rem; }
+.bar { max-width: 66rem; margin: 0 auto; padding: 0 1.5rem; height: 3rem;
+  display: flex; align-items: center; gap: 1.5rem; }
+.brand { display: flex; align-items: center; gap: 0.5rem; font-weight: 600;
+  text-decoration: none; color: var(--foreground); font-size: 1.05rem;
+  letter-spacing: 0.16px; }
+
+/* logo.png is a single-colour glyph on transparency, so it is painted as a mask
+   rather than drawn: it inherits currentColor and therefore stays legible on
+   white, on charcoal, and in dark mode. One file, every surface. */
+.logo {
+  display: inline-block; width: 1.35rem; height: 1.35rem; flex: none;
+  background-color: currentColor;
+  -webkit-mask: url("/logo.png") no-repeat center / contain;
+  mask: url("/logo.png") no-repeat center / contain;
+}
+.brand .logo { color: var(--primary); }
+.footer-brand { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+.footer-brand .logo { color: var(--carbon-inverse-ink); }
+.nav { display: flex; align-items: center; gap: 0.25rem; }
+.spacer { margin-left: auto; }
+.hstack { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.vstack { display: flex; flex-direction: column; gap: 0.75rem; }
+/* auto-fit, not auto-fill: with one dataset, auto-fill leaves three empty
+   tracks and the wrapper's border colour shows through as a grey slab. */
+.grid-cards { display: grid; gap: 1px; background: var(--border);
+  border: 1px solid var(--border);
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+.muted { color: var(--muted-foreground); }
+.mono { font-family: var(--font-mono); }
+.mt-3 { margin-top: 0.75rem; }
+.mb-4 { margin-bottom: 1rem; }
+a.reset { color: inherit; text-decoration: none; }
+
+/* Inner pages keep a padded header; the dashboard overrides it. */
+.page-title { font-size: 2.625rem; font-weight: 300; line-height: 1.2;
+  letter-spacing: 0; margin: 0; }
+.page-sub { color: var(--muted-foreground); margin: 0.5rem 0 1.5rem;
+  font-size: 1.125rem; line-height: 1.5; max-width: 44rem; }
+.section-title { font-size: 1.25rem; font-weight: 400; margin: 2rem 0 0.75rem; }
+.page-pad { padding: 2rem 1.5rem 0; }
+
+/* Links: blue is scarce, and links are one of the few places it is spent.
+   Every class that paints its own colour has to be excluded here, or this rule
+   outranks it on specificity and repaints it blue — which is how a black button
+   ends up with blue text. `.btn-on-blue` is a link; so is every `.btn`. */
+a:not(.reset):not(.btn):not(.btn-on-blue):not(.chip):not(.tile) {
+  color: var(--primary); text-decoration: none;
+}
+a:not(.reset):not(.btn):not(.btn-on-blue):not(.chip):not(.tile):hover {
+  color: var(--carbon-blue-60); text-decoration: underline;
+}
+.dark a:not(.reset):not(.btn):not(.btn-on-blue):not(.chip):not(.tile):hover { color: #a6c8ff; }
+
+/* Carbon's signature focus treatment: a 2px blue ring, square. */
+a:focus-visible, button:focus-visible, input:focus-visible,
+textarea:focus-visible, select:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.topbar { border-bottom: 1px solid var(--border); background: var(--background);
+  position: sticky; top: 0; z-index: 20; }
+
+/* --- buttons -------------------------------------------------------------
+   Carbon's button is a square slab with a 16px inset label — not shadcn's
+   rounded pill. These classes are the Carbon one, used directly, so the two
+   never fight over the same element. */
+.btn {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  min-height: 40px; padding: 0 16px; border: 1px solid transparent;
+  font: inherit; font-size: 0.875rem; letter-spacing: 0.16px;
+  text-decoration: none !important; cursor: pointer;
+  background: transparent; color: var(--foreground);
+  transition: background 0.11s var(--ease-productive),
+              border-color 0.11s var(--ease-productive);
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* Blue 60, not `--primary` — same reason as the CTA band: `--primary` is Blue 50
+   in dark so blue text clears charcoal, but as a button fill it only carries
+   white at 3.35:1. A filled button is a fill. */
+.btn-primary { background: var(--carbon-blue); color: #ffffff; }
+.btn-primary:hover:not(:disabled) { background: var(--carbon-blue-hover); }
+.btn-secondary { background: var(--secondary); color: var(--secondary-foreground); }
+.btn-secondary:hover:not(:disabled) { background: #393939; }
+.btn-outline { border-color: var(--border); }
+.btn-outline:hover:not(:disabled) { background: var(--muted); }
+.btn-ghost:hover:not(:disabled) { background: var(--muted); }
+
+.badge {
+  display: inline-flex; align-items: center; padding: 0.125rem 0.5rem;
+  border: 1px solid var(--border); font-size: 0.6875rem; letter-spacing: 0.32px;
+  color: var(--muted-foreground);
+}
+
+/* theme toggle: show the icon for the mode you'd switch TO */
+.theme-light { display: inline-flex; align-items: center; }
+.theme-dark { display: none; }
+.dark .theme-light { display: none; }
+.dark .theme-dark { display: inline-flex; align-items: center; }
+
+/* --- hero ----------------------------------------------------------------
+   Carbon's light-weight display type is the brand voice. Weight 300 at 42-76px.
+   Resist bolding it. */
+.hero { padding: 4rem 1.5rem 3rem; border-bottom: 1px solid var(--border); }
+.eyebrow { font-size: 0.875rem; font-weight: 400; letter-spacing: 0.16px;
+  color: var(--muted-foreground); margin: 0 0 1rem; }
+.hero-title { font-size: 3.75rem; font-weight: 300; line-height: 1.17;
+  letter-spacing: -0.4px; margin: 0; max-width: 20ch; }
+.hero-lead { font-size: 1.125rem; line-height: 1.5; color: var(--muted-foreground);
+  margin: 1.5rem 0 2rem; max-width: 52ch; }
+.hero-actions { display: flex; gap: 1rem; flex-wrap: wrap; }
+
+/* --- stat band -----------------------------------------------------------
+   Surface change plus hairlines, never a shadow. The 1px grid gaps ARE the
+   borders: the wrapper's background bleeds through. */
+.stat-band { display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1px; background: var(--border);
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.stat { background: var(--background); padding: 1.5rem; }
+.stat-value { font-size: 2.625rem; font-weight: 300; line-height: 1.2;
+  font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.stat-label { font-size: 0.875rem; color: var(--muted-foreground);
+  letter-spacing: 0.16px; margin-top: 0.25rem; }
+
+/* --- generic section ----------------------------------------------------- */
+.section { padding: 4rem 1.5rem; }
+.section-alt { background: var(--muted); }
+.section-head { font-size: 2rem; font-weight: 400; line-height: 1.25;
+  letter-spacing: 0; margin: 0 0 0.75rem; }
+.section-lead { color: var(--muted-foreground); margin: 0 0 2rem; max-width: 60ch; }
+
+/* --- pipeline: the numbered stages of how data moves --------------------- */
+.pipeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--border); border: 1px solid var(--border); }
+.stage { background: var(--background); padding: 1.5rem; position: relative;
+  overflow: hidden; transition: background 0.11s var(--ease-productive); }
+.stage:hover { background: var(--muted); }
+.stage:hover .stage-num { color: var(--foreground); }
+.stage-num { font-size: 0.875rem; color: var(--primary); font-weight: 600;
+  letter-spacing: 0.16px; transition: color 0.11s var(--ease-productive); }
+.stage-title { font-size: 1.25rem; font-weight: 400; margin: 0.5rem 0; }
+.stage-body { font-size: 0.875rem; line-height: 1.5; color: var(--muted-foreground);
+  margin: 0; }
+
+/* --- source + dataset tiles ---------------------------------------------- */
+.tile { background: var(--background); padding: 1.5rem; display: block;
+  border: 0; color: inherit; text-decoration: none;
+  transition: background 0.11s var(--ease-productive),
+              transform 0.11s var(--ease-productive); }
+a.tile:hover { background: var(--muted); transform: translateY(-1px); }
+.tile-title { font-size: 1.25rem; font-weight: 400; margin: 0 0 0.25rem;
+  word-break: break-word; }
+.tile-meta { font-size: 0.875rem; color: var(--muted-foreground); margin: 0;
+  letter-spacing: 0.16px; }
+
+/* Status pills. Semantic colour only -- never the brand blue. */
+.pill { display: inline-flex; align-items: center; gap: 0.375rem;
+  font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted-foreground); }
+.pill::before { content: ""; width: 0.5rem; height: 0.5rem; flex: none; }
+.pill-live::before { background: var(--carbon-success); }
+.pill-off::before { background: var(--carbon-ink-subtle); }
+
+/* --- code block ---------------------------------------------------------- */
+.code { background: var(--carbon-inverse-canvas); color: var(--carbon-inverse-ink-muted);
+  font-family: var(--font-mono); font-size: 0.8125rem; line-height: 1.7;
+  padding: 1.25rem 1.5rem; overflow-x: auto; margin: 0; letter-spacing: 0; }
+/* On charcoal the block would vanish into the page; a hairline restores the edge. */
+.dark .code { border: 1px solid var(--border); }
+.code .c { color: var(--carbon-ink-subtle); }
+.code .p { color: #78a9ff; }
+
+/* min-width:0 on the tracks: a grid item defaults to min-width:auto, so it
+   refuses to shrink below the <pre>'s content and scrolls the page instead of
+   itself. The code block must scroll inside its own box. */
+.code-group { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+.code-group > * { min-width: 0; }
+.code-caption { font-size: 0.875rem; font-weight: 600; letter-spacing: 0.16px;
+  margin: 0 0 0.75rem; }
+
+/* --- CTA banner: the one full-bleed blue surface ------------------------- */
+/* Blue 60, not `--primary`: in dark mode `--primary` lightens to Blue 50 so that
+   blue *text* clears contrast on charcoal. As a *fill* that inverts the problem —
+   white on Blue 50 is 3.35:1, below AA. The band is a fill, so it holds Blue 60
+   in both themes, where white reads 5.0:1. */
+.cta { background: var(--carbon-blue); color: #ffffff; padding: 3rem 1.5rem; }
+.cta-inner { max-width: 66rem; margin: 0 auto; display: flex;
+  align-items: center; justify-content: space-between; gap: 2rem; flex-wrap: wrap; }
+.cta-title { font-size: 2rem; font-weight: 400; line-height: 1.25; margin: 0; }
+/* No opacity: 0.9 here — it dropped white on Blue 60 from 5.0:1 to below AA for
+   the sake of a shade of grey nobody asked for. */
+.cta-lead { margin: 0.5rem 0 0; max-width: 46ch; }
+.cta a { color: #ffffff; text-decoration: underline; }
+.cta a:hover { color: #ffffff; }
+/* On blue, the CTA button inverts to white-on-charcoal, not blue-on-blue. */
+.btn-on-blue { display: inline-flex; align-items: center; justify-content: center;
+  background: var(--carbon-ink); color: #ffffff; text-decoration: none !important;
+  font-size: 0.875rem; letter-spacing: 0.16px; padding: 12px 16px; border: 0;
+  min-height: 48px; transition: background 0.11s var(--ease-productive); }
+.btn-on-blue:hover { background: #393939; color: #ffffff; }
+
+/* --- footer: the only inverted surface above the page break -------------- */
+.footer { background: var(--carbon-inverse-canvas); color: var(--carbon-inverse-ink-muted);
+  padding: 4rem 1.5rem 3rem; margin-top: 0; }
+.footer-inner { max-width: 66rem; margin: 0 auto; display: grid;
+  grid-template-columns: 2fr 1fr 1fr; gap: 2rem; }
+.footer h3 { color: var(--carbon-inverse-ink); font-size: 0.875rem;
+  font-weight: 600; letter-spacing: 0.16px; margin: 0 0 1rem; }
+.footer p, .footer li { font-size: 0.875rem; line-height: 1.5; }
+.footer ul { list-style: none; padding: 0; margin: 0; }
+.footer li { margin-bottom: 0.5rem; }
+.footer a { color: var(--carbon-inverse-ink-muted) !important; text-decoration: none !important; }
+.footer a:hover { color: var(--carbon-inverse-ink) !important; text-decoration: underline !important; }
+.footer-note { max-width: 66rem; margin: 3rem auto 0; padding-top: 1.5rem;
+  border-top: 1px solid var(--carbon-inverse-surface-1); font-size: 0.75rem;
+  letter-spacing: 0.32px; color: var(--carbon-ink-subtle); }
+
+/* --- bar chart -----------------------------------------------------------
+   Single series, direct value label on every bar -- the one form where bars
+   beat a table. Square, per the brand. */
+.bars { display: flex; flex-direction: column; gap: 0.5rem; }
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+.bar-label {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bar-track { background: var(--muted); height: 1.375rem; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--primary); min-width: 2px; }
+.bar-value {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+/* monospace data cells in result tables */
+.data-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.cell-null { color: var(--muted-foreground); font-style: italic; }
+
+/* --- AI chat -------------------------------------------------------------- */
+.chat { display: flex; flex-direction: column; gap: 0.75rem; min-height: 6rem; }
+.msg-user {
+  align-self: flex-end;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  padding: 0.625rem 0.875rem;
+  max-width: 85%;
+}
+.msg-assistant { align-self: flex-start; white-space: pre-wrap; max-width: 90%; }
+.tool-event {
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  max-width: 90%;
+  overflow-x: auto;
+}
+.tool-event .tool-name { color: var(--primary); font-weight: 600; }
+.tool-event pre { margin: 0.25rem 0 0; white-space: pre-wrap; word-break: break-word; }
+
+/* --- motion --------------------------------------------------------------
+   Motion here is additive and reversible: the hidden state (.will-reveal) is
+   applied by script, so with JS off, or with reduced motion, every element
+   renders in its final visible state. Nothing important is gated behind it. */
+.will-reveal { opacity: 0; transform: translateY(12px); }
+.will-reveal.is-in {
+  opacity: 1; transform: none;
+  transition: opacity 0.5s var(--ease-entrance), transform 0.5s var(--ease-entrance);
+}
+/* stagger children of a revealed group */
+.will-reveal.is-in > * { animation: rise 0.5s var(--ease-entrance) backwards; }
+.will-reveal.is-in > :nth-child(2) { animation-delay: 0.06s; }
+.will-reveal.is-in > :nth-child(3) { animation-delay: 0.12s; }
+.will-reveal.is-in > :nth-child(4) { animation-delay: 0.18s; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* the hero headline arrives once, on load, without waiting for scroll */
+.hero-title, .hero-lead, .hero-actions, .eyebrow {
+  animation: rise 0.6s var(--ease-entrance) backwards;
+}
+.eyebrow      { animation-delay: 0.02s; }
+.hero-title   { animation-delay: 0.08s; }
+.hero-lead    { animation-delay: 0.16s; }
+.hero-actions { animation-delay: 0.24s; }
+
+/* the four pipeline stages draw a connecting rule as they enter */
+.stage::after {
+  content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 100%;
+  background: var(--primary); transform: scaleX(0); transform-origin: left;
+}
+.will-reveal.is-in .stage::after {
+  animation: draw 0.6s var(--ease-productive) forwards;
+}
+.will-reveal.is-in .stage:nth-child(1)::after { animation-delay: 0.10s; }
+.will-reveal.is-in .stage:nth-child(2)::after { animation-delay: 0.25s; }
+.will-reveal.is-in .stage:nth-child(3)::after { animation-delay: 0.40s; }
+.will-reveal.is-in .stage:nth-child(4)::after { animation-delay: 0.55s; }
+@keyframes draw { to { transform: scaleX(1); } }
+
+/* --- hero chart: the real gdp_annual series ------------------------------ */
+.hero-grid { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 3rem;
+  align-items: center; }
+.chart { width: 100%; height: auto; display: block; overflow: visible; }
+.chart-line { fill: none; stroke: var(--primary); stroke-width: 2;
+  vector-effect: non-scaling-stroke; }
+.chart-area { fill: var(--primary); opacity: 0.08; }
+.chart-frame { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.chart-cap { fill: var(--primary); }
+.chart-caption { font-size: 0.75rem; letter-spacing: 0.32px;
+  color: var(--muted-foreground); margin: 0.75rem 0 0; }
+
+/* draw the line on, left to right, then fade the fill under it */
+.chart-line { stroke-dasharray: 1400; stroke-dashoffset: 1400; }
+.is-in .chart-line { animation: trace 1.4s var(--ease-productive) 0.2s forwards; }
+.is-in .chart-area { animation: fade 0.8s ease-out 1.0s backwards; }
+.is-in .chart-cap  { animation: pop 0.4s var(--ease-entrance) 1.5s backwards; }
+@keyframes trace { to { stroke-dashoffset: 0; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 0.08; } }
+@keyframes pop { from { opacity: 0; r: 0; } }
+
+/* --- Carbon dot grid: the one documented decorative motif ----------------- */
+.dotgrid { position: relative; }
+.dotgrid::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: radial-gradient(var(--border) 1px, transparent 1px);
+  background-size: 16px 16px;
+  -webkit-mask-image: linear-gradient(to bottom, #000, transparent 70%);
+  mask-image: linear-gradient(to bottom, #000, transparent 70%);
+  opacity: 0.7;
+}
+.dotgrid > * { position: relative; }
+
+/* --- the datasets finder: search + filters + card grid --------------------- */
+.finder {
+  display: grid; gap: 1rem; align-items: end; margin-bottom: 1.5rem;
+  grid-template-columns: 2fr 1fr 1fr;
+}
+.finder .field { gap: 0.375rem; }
+/* A bare <select> has an intrinsic ~36px height; with box-sizing:border-box the
+   padding eats into it rather than adding to it, clipping the descenders. Carbon
+   wants a 48px control anyway, so state it and let the padding sit inside. */
+.finder input, .finder select { min-height: 48px; }
+.finder select {
+  background: var(--muted); color: var(--foreground);
+  border: 0; border-bottom: 1px solid var(--muted-foreground);
+  padding: 11px 16px; font: inherit; letter-spacing: 0.16px; width: 100%;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+                    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position: calc(100% - 20px) 50%, calc(100% - 15px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 2.5rem;
+}
+.finder select:focus, .finder input:focus {
+  outline: 2px solid var(--primary); outline-offset: -2px;
+  border-bottom-color: var(--primary);
+}
+/* a search input's native clear affordance fights the square chrome */
+.finder input[type="search"]::-webkit-search-decoration,
+.finder input[type="search"]::-webkit-search-cancel-button { appearance: none; }
+
+/* filter chips: square, hairline, one blue when active */
+.chips { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+  margin-bottom: 1.5rem; }
+.chip {
+  display: inline-flex; align-items: center; min-height: 32px; padding: 0 0.75rem;
+  border: 1px solid var(--border); background: var(--background);
+  color: var(--muted-foreground) !important; text-decoration: none !important;
+  font-size: 0.75rem; letter-spacing: 0.32px;
+  transition: border-color 0.11s var(--ease-productive),
+              color 0.11s var(--ease-productive);
+}
+.chip:hover { border-color: var(--muted-foreground); color: var(--foreground) !important; }
+/* The 8% blue wash darkens the backdrop just enough that Blue 60 on it lands at
+   4.46:1 — under AA by a hair. Blue 70 on the same wash is 6.95:1. In dark the
+   wash sits on charcoal, where the lighter Blue 50 (`--primary`) is the one that
+   reads, so each theme takes the blue that actually clears its own background. */
+.chip-on {
+  border-color: var(--primary);
+  color: var(--carbon-blue-60) !important;
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+.dark .chip-on { color: var(--primary) !important; }
+.chip-sep { width: 1px; height: 20px; background: var(--border); margin: 0 0.25rem; }
+
+.result-count { font-size: 0.75rem; letter-spacing: 0.32px; margin: 0 0 1rem; }
+
+/* Card grid. auto-fit, and each card owns its border — no gap-as-hairline, so a
+   trailing partial row never shows a grey slab where a track would have been. */
+.card-grid { display: grid; gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); }
+
+.dcard {
+  display: flex; flex-direction: column; gap: 0.875rem;
+  border: 1px solid var(--border); background: var(--background);
+  padding: 1.5rem; min-width: 0;
+  transition: border-color 0.11s var(--ease-productive),
+              transform 0.11s var(--ease-productive);
+}
+.dcard:hover { border-color: var(--muted-foreground); transform: translateY(-1px); }
+.dcard header { display: flex; flex-direction: column; gap: 0.25rem; }
+.dcard-title { font-size: 1.125rem; font-weight: 400; margin: 0;
+  word-break: break-word; line-height: 1.35; }
+/* The whole card is a target, but only the title is the link — a card-wide
+   anchor would swallow the "View" button and the section link inside it. */
+.dcard-title a { color: var(--foreground) !important; text-decoration: none !important; }
+.dcard:hover .dcard-title a { color: var(--primary) !important; }
+.dcard-title a:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.dcard-source { font-size: 0.75rem; letter-spacing: 0.32px;
+  color: var(--muted-foreground); margin: 0; }
+.dcard-number { font-family: var(--font-mono); color: var(--primary);
+  margin-right: 0.25rem; }
+.dcard-desc { margin: 0; font-size: 0.875rem; line-height: 1.5;
+  color: var(--muted-foreground); flex: 1; }
+/* The table a series belongs to. Its own name does not identify it — twenty-three
+   series are called "Lainnya" — so this line is not decoration, it is the rest of
+   the name. */
+.dcard-parent { margin: 0; font-size: 0.8125rem; color: var(--muted-foreground); }
+
+/* The catalogue is 4,030 cards. It pages. */
+.card-pager { display: flex; align-items: center; justify-content: center;
+  gap: 1rem; margin-top: 2rem; }
+
+.labels { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.label {
+  display: inline-flex; align-items: center; padding: 0.125rem 0.5rem;
+  border: 1px solid var(--border); font-size: 0.6875rem; letter-spacing: 0.32px;
+  color: var(--muted-foreground); text-transform: lowercase; white-space: nowrap;
+}
+/* Semantic only — the brand blue stays reserved for links and primary CTAs.
+   No single green clears WCAG AA on both surfaces: Carbon's green-50 is 3.35:1
+   on white (fail) but 5.4:1 on charcoal, so the light theme takes green-60. */
+.label-queryable { border-color: #198038; color: #198038; }
+.dark .label-queryable { border-color: var(--carbon-success); color: var(--carbon-success); }
+.label-paused { border-color: var(--muted-foreground); color: var(--muted-foreground); }
+
+.dcard-foot { display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap; padding-top: 0.875rem;
+  border-top: 1px solid var(--border); }
+.dcard-meta { font-size: 0.75rem; letter-spacing: 0.32px; display: flex;
+  align-items: center; gap: 0.375rem; flex-wrap: wrap; }
+.dcard-meta time { font-variant-numeric: tabular-nums; }
+.dcard-note { font-size: 0.75rem; letter-spacing: 0.32px; }
+.dot { color: var(--muted-foreground); }
+
+/* --- dataset detail ------------------------------------------------------- */
+.detail-number { font-family: var(--font-mono); font-size: 0.875rem;
+  color: var(--primary); margin: 0 0 0.5rem; letter-spacing: 0.16px; }
+.detail-title { font-size: 2.625rem; font-weight: 300; line-height: 1.2;
+  letter-spacing: 0; margin: 0; max-width: 22ch; }
+
+/* the column list on a detail page: same hairline cells as the card grid, but
+   each cell draws its own rules so a partial last row shows no grey slab */
+.schema-list { display: grid; gap: 0;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
+.schema-col { background: var(--background); padding: 0.75rem 1rem;
+  display: flex; flex-direction: column; gap: 0.125rem; min-width: 0;
+  border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.schema-name { font-size: 0.8125rem; overflow: hidden; text-overflow: ellipsis; }
+.schema-type { font-size: 0.6875rem; letter-spacing: 0.32px;
+  color: var(--muted-foreground); }
+
+/* Wide tables scroll inside their own box, never the page. */
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); background: var(--background); }
+.table-wrap table { width: 100%; border-collapse: collapse; }
+.table-wrap th, .table-wrap td { text-align: left; padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--border); white-space: nowrap; }
+.table-wrap th { font-size: 0.75rem; letter-spacing: 0.32px; font-weight: 600;
+  color: var(--muted-foreground); }
+.table-wrap tbody tr:last-child td { border-bottom: 0; }
+.table-wrap td { font-size: 0.875rem; }
+
+/* --- forms --------------------------------------------------------------- */
+.form { display: grid; gap: 1.25rem; max-width: 34rem; }
+.field { display: grid; gap: 0.375rem; }
+.field label { font-size: 0.75rem; letter-spacing: 0.32px;
+  color: var(--muted-foreground); }
+/* Carbon inputs: filled surface, square, with a bottom rule that turns blue. */
+.field input, .field textarea {
+  background: var(--muted); color: var(--foreground);
+  border: 0; border-bottom: 1px solid var(--muted-foreground);
+  padding: 11px 16px; font: inherit; letter-spacing: 0.16px; width: 100%;
+  transition: border-color 0.11s var(--ease-productive);
+}
+.field textarea { resize: vertical; min-height: 8rem; }
+.field input:focus, .field textarea:focus {
+  outline: 2px solid var(--primary); outline-offset: -2px;
+  border-bottom-color: var(--primary);
+}
+.form-note { font-size: 0.875rem; color: var(--muted-foreground); }
+
+/* result / status fragments */
+.notice { padding: 1rem 1.25rem; border-left: 3px solid var(--primary);
+  background: var(--muted); animation: rise 0.35s var(--ease-entrance); }
+.notice-error { border-left-color: var(--carbon-error); }
+.notice ul { margin: 0.5rem 0 0; padding-left: 1.1rem; }
+
+/* --- the admin panel ------------------------------------------------------
+   Same Carbon language as the public site: it is the same product, and an ops
+   tool that looks like a different application is one more thing to hold in your
+   head at 3am. */
+.admin-head { display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+/* The stat band is full-bleed on the public pages; inside the padded admin column
+   it needs its own border rather than the page's. */
+.admin-stats { border: 1px solid var(--border); margin-bottom: 0; }
+
+/* The bar above the working area: the sidebar's collapse toggle and the name of
+   the page you are on. Sticky, because the tables below it are long. */
+.admin-bar {
+  display: flex; align-items: center; gap: 0.75rem;
+  height: 3rem; padding: 0 1rem; flex: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--background);
+  position: sticky; top: 0; z-index: 10;
+}
+.admin-bar-title { font-size: 1rem; font-weight: 400; margin: 0; letter-spacing: 0.16px; }
+/* No max-width here: an admin table wants the whole screen, unlike a page of prose
+   which wants a readable measure. */
+.admin-body { padding: 1.5rem 1rem 4rem; }
+.admin-body > .section-title:first-child { margin-top: 0; }
+
+/* The sidebar rail is charcoal in both themes, so anything inside it that would
+   otherwise inherit the page's link colour has to be told not to. */
+[data-slot="sidebar"] a { color: inherit !important; text-decoration: none !important; }
+[data-slot="sidebar"] .logo { color: var(--sidebar-primary); }
+
+/* min-width:0 is load-bearing. A flex item defaults to min-width:auto, so the
+   inset refuses to shrink below its widest child — a wide data table — and pushes
+   the whole document sideways instead of scrolling inside its own box. The grid
+   is the thing that should scroll; the page never is. */
+[data-slot="sidebar-inset"] { min-width: 0; }
+
+/* shadcn dims the group label to 70% opacity, which on charcoal lands at 1.1:1 —
+   effectively invisible, and nowhere near AA. Full opacity on Carbon's muted
+   inverse ink reads 10.6:1 and still sits back from the items below it, which is
+   all the dimming was ever trying to achieve. */
+[data-slot="sidebar-group-label"] {
+  opacity: 1;
+  color: var(--carbon-inverse-ink-muted);
+  letter-spacing: 0.32px;
+  text-transform: uppercase;
+  font-size: 0.6875rem;
+}
+/* The bottom rail's secondary text (the email under your name) is dimmed the same
+   way and lands in the same hole. */
+[data-slot="sidebar"] .opacity-70 { opacity: 1; color: var(--carbon-inverse-ink-muted); }
+
+/* --- the data browser ------------------------------------------------------ */
+
+.table-picker { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+.table-picker .chip { gap: 0.5rem; cursor: pointer; font-family: inherit; }
+
+/* --- the data drill-down ---------------------------------------------------
+   Four thousand datasets is not a list you scroll; it is a tree you walk. Each
+   row is one level down, and the caret says whether there is another one inside.
+*/
+.drill-crumbs { display: flex; align-items: center; flex-wrap: wrap; gap: 0.25rem;
+  margin-bottom: 1rem; }
+.crumb { background: none; border: 0; padding: 0.25rem 0.375rem; cursor: pointer;
+  font: inherit; font-size: 0.8125rem; color: var(--primary);
+  letter-spacing: 0.16px; }
+.crumb:hover { text-decoration: underline; }
+/* The level you are on is not a link to itself. */
+.crumb-on { color: var(--foreground); cursor: default; font-weight: 600; }
+.crumb-on:hover { text-decoration: none; }
+.crumb-sep { color: var(--muted-foreground); flex: none; }
+
+.drill-list { list-style: none; padding: 0; margin: 0;
+  border: 1px solid var(--border); }
+.drill-list li + li { border-top: 1px solid var(--border); }
+
+.drill-row {
+  display: flex; align-items: center; gap: 0.75rem; width: 100%;
+  padding: 0.625rem 0.875rem; background: var(--background); border: 0;
+  font: inherit; text-align: left; cursor: pointer;
+  transition: background 0.11s var(--ease-productive);
+}
+/* A row carrying a description is three lines tall, and an icon centred against that
+   floats beside the middle of a paragraph. Pin it to the title it belongs to. */
+.drill-row:has(.drill-desc) { align-items: flex-start; }
+.drill-row:has(.drill-desc) .drill-icon,
+.drill-row:has(.drill-desc) .drill-rows { margin-top: 0.1875rem; }
+.drill-row:hover { background: var(--muted); }
+.drill-row-on { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.drill-icon { color: var(--muted-foreground); flex: none; }
+.drill-row:hover .drill-icon { color: var(--primary); }
+
+/* min-width:0 so a long title truncates instead of pushing the row count off the
+   end. A flex item defaults to min-width:auto and refuses to shrink. */
+.drill-main { display: flex; flex-direction: column; gap: 0.125rem; flex: 1;
+  min-width: 0; }
+/* The title truncates rather than pushing the row count off the end — whether it sits
+   in a `.drill-title` beside a badge (the root list) or bare (everywhere else). */
+.drill-title { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.drill-title > span:first-child,
+.drill-main > span:first-child:not(.drill-title) { overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.drill-sub { font-size: 0.6875rem; letter-spacing: 0.32px;
+  color: var(--muted-foreground); }
+.drill-sub code { font-size: inherit; }
+
+/* What the source says it publishes. The one line on this page that tells a reader
+   who does not already know what any of this IS. Clamped to two lines: a description
+   is a sentence, and a row that grows to five lines stops being a row. */
+.drill-desc { font-size: 0.75rem; line-height: 1.45; color: var(--muted-foreground);
+  margin-top: 0.1875rem; display: -webkit-box; -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical; overflow: hidden; }
+
+/* A source that has published nothing has no page to open, so its row is a statement
+   rather than a link — no hover, no pointer, no promise it does not keep. */
+.drill-row-flat { cursor: default; }
+.drill-row-flat:hover { background: var(--background); }
+.drill-row-flat:hover .drill-icon { color: var(--muted-foreground); }
+
+/* Whether a source is keeping to its schedule. Not a filter chip — a statement. */
+.badge { display: inline-flex; align-items: center; gap: 0.25rem; flex: none;
+  padding: 0.0625rem 0.375rem; font-size: 0.625rem; font-weight: 500;
+  letter-spacing: 0.32px; text-transform: uppercase; white-space: nowrap; }
+/* Red 60 on white / Red 50 on charcoal: `--danger-ink` is the pair that clears AA
+   against the page background in both themes. */
+.badge-stale { color: var(--danger-ink);
+  background: color-mix(in srgb, var(--danger-ink) 10%, transparent); }
+.badge-fresh { color: var(--muted-foreground); background: var(--muted); }
+.badge-paused { color: var(--muted-foreground); background: var(--muted); }
+
+.drill-rows { font-size: 0.8125rem; color: var(--muted-foreground); flex: none; }
+.drill-caret { color: var(--muted-foreground); flex: none; }
+.drill-row:hover .drill-caret { color: var(--foreground); }
+
+/* Two targets in one row: the row itself opens the thing's page, and the caret
+   drills into what is inside it without leaving the list. A row with nothing inside
+   it (a series) has no caret, and its link fills the width. */
+.drill-pair { display: flex; align-items: stretch; }
+.drill-pair .drill-row { flex: 1; min-width: 0; }
+.drill-into {
+  display: flex; align-items: center; padding: 0 0.75rem; flex: none;
+  background: var(--background); border: 0; border-left: 1px solid var(--border);
+  color: var(--muted-foreground); cursor: pointer;
+  transition: background 0.11s var(--ease-productive), color 0.11s var(--ease-productive);
+}
+.drill-into:hover { background: var(--muted); color: var(--primary); }
+.drill-into:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+/* Back to the level a thing lives on. Not a breadcrumb trail — one step, because
+   that is the one a reader wants: the other fifty-eight series in this table. */
+.crumb-back {
+  display: inline-flex; align-items: center; gap: 0.25rem; margin-bottom: 0.75rem;
+  background: none; border: 0; padding: 0; font: inherit; cursor: pointer;
+  font-size: 0.8125rem; color: var(--muted-foreground);
+}
+.crumb-back:hover { color: var(--primary); }
+
+/* What a thing is, above its title: its rung, its section, its id. */
+.detail-eyebrow { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap;
+  font-size: 0.6875rem; letter-spacing: 0.32px; text-transform: uppercase;
+  color: var(--muted-foreground); margin-bottom: 0.25rem; }
+/* An id is not a word. Upper-casing `ko3q57le` makes it something a reader cannot
+   type back in — and `I` and `l` become the same character on the way. */
+.detail-eyebrow .mono { text-transform: none; }
+
+/* --- a detail page: the work on the left, the facts beside it ---------------- */
+
+/* min-width:0 on the main column so a wide grid or a long line of SQL scrolls inside
+   itself rather than shoving the sidebar off the screen. A grid item defaults to
+   min-width:auto and refuses to shrink below its content. */
+.detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) 17rem;
+  gap: 2rem; align-items: start; margin-top: 1.5rem; }
+.detail-main { min-width: 0; display: flex; flex-direction: column; gap: 2rem; }
+.detail-main > section { margin: 0; }
+.detail-main .section-title:first-child { margin-top: 0; }
+
+/* Sticky, because "is this in billions or millions?" is a question you ask on row 300.
+   A fact that has scrolled away by the time it is needed may as well not be there. */
+.detail-aside { min-width: 0; }
+.detail-sticky { position: sticky; top: 1rem; display: flex; flex-direction: column;
+  gap: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
+
+.meta-card { border: 1px solid var(--border); padding: 0.875rem; }
+.meta-head { display: flex; align-items: baseline; justify-content: space-between;
+  gap: 0.5rem; margin: 0 0 0.625rem;
+  font-size: 0.6875rem; font-weight: 500; letter-spacing: 0.32px;
+  text-transform: uppercase; color: var(--muted-foreground); }
+.meta-count { font-variant-numeric: tabular-nums; }
+
+.meta-list { margin: 0; display: flex; flex-direction: column; gap: 0.625rem; }
+.meta-row { display: flex; flex-direction: column; gap: 0.125rem; min-width: 0; }
+.meta-row dt { font-size: 0.6875rem; letter-spacing: 0.32px;
+  color: var(--muted-foreground); }
+/* A series name is long and a key has no spaces to wrap on, so both are allowed to
+   break rather than widen the column they sit in. */
+.meta-row dd { margin: 0; font-size: 0.8125rem; overflow-wrap: anywhere; }
+
+/* The other series in this group. Scrolls: SEKI's biggest table has 59 of them, and
+   `gdp_annual` has 260 countries. */
+.sibling-list { list-style: none; margin: 0; padding: 0;
+  max-height: 15rem; overflow-y: auto; }
+.sibling { display: block; padding: 0.3125rem 0.375rem; font-size: 0.75rem;
+  line-height: 1.35; color: var(--muted-foreground);
+  border-left: 2px solid transparent;
+  transition: color 0.11s var(--ease-productive),
+              background 0.11s var(--ease-productive); }
+.sibling:hover { background: var(--muted); color: var(--foreground); }
+/* The one you are on is a place, not a link back to itself. */
+.sibling-on { color: var(--foreground); font-weight: 500;
+  border-left-color: var(--primary); background: var(--muted); }
+
+/* --- code a reader is meant to copy ----------------------------------------- */
+
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border);
+  margin-bottom: -1px; }
+.tab { background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 0.5rem 0.875rem; font: inherit; font-size: 0.8125rem; cursor: pointer;
+  color: var(--muted-foreground);
+  transition: color 0.11s var(--ease-productive),
+              border-color 0.11s var(--ease-productive); }
+.tab:hover { color: var(--foreground); }
+.tab-on { color: var(--foreground); border-bottom-color: var(--primary); }
+.tab:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+
+.code-wrap { position: relative; }
+/* Over the code, top-right — where a reader's eye already is when they decide to take
+   it. It sits above the scroll, so a wide line slides under it rather than past it. */
+.code-copy { position: absolute; top: 0.5rem; right: 0.5rem; z-index: 1;
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  padding: 0.25rem 0.5rem; font: inherit; font-size: 0.6875rem;
+  background: var(--background); color: var(--muted-foreground);
+  border: 1px solid var(--border); cursor: pointer;
+  transition: color 0.11s var(--ease-productive),
+              border-color 0.11s var(--ease-productive); }
+.code-copy:hover { color: var(--primary); border-color: var(--primary); }
+.code-copy:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+
+/* Scrolls inside itself — a long WHERE clause must not make the whole page scroll
+   sideways. */
+.code-block { background: var(--muted); border: 1px solid var(--border);
+  padding: 0.75rem 0.875rem; font-size: 0.8125rem; line-height: 1.55;
+  overflow-x: auto; white-space: pre; margin: 0; }
+
+/* What every row of a filtered view has in common, said once instead of 304 times.
+   Browsing one series, four columns repeat the same string on every row and push
+   `period` and `value` — the two anyone came for — off the right edge. */
+.grid-constants { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+  margin: 0 0 0.75rem; font-size: 0.75rem; }
+.grid-constant { display: inline-flex; align-items: baseline; gap: 0.375rem;
+  padding: 0.1875rem 0.5rem; background: var(--muted);
+  border: 1px solid var(--border); max-width: 100%; }
+.grid-constant > span:last-child { overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; }
+.grid-constant-key { color: var(--muted-foreground); }
+
+.table-toolbar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  margin-bottom: 0.75rem; }
+.page-size { background: var(--muted); color: var(--foreground); border: 0;
+  border-bottom: 1px solid var(--muted-foreground); padding: 4px 8px; font: inherit;
+  font-size: 0.8125rem; }
+
+/* The grid scrolls inside its own box — both ways. A wide table must never make
+   the page scroll sideways, and a tall one must keep its header in view.
+   `min-width:max-content` on the table is what lets the last column reach its
+   full width instead of being squeezed to fit: the box scrolls, the column does
+   not shrink. */
+.data-grid { max-height: 70vh; overflow: auto; }
+.data-grid table { min-width: max-content; }
+.data-grid thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--background);
+  /* A sticky header loses its border to the scroll, so draw one that travels. */
+  box-shadow: inset 0 -1px 0 var(--border) !important;
+  padding: 0.5rem 0.75rem; vertical-align: top;
+}
+.data-grid td { padding: 0.5rem 0.75rem; font-size: 0.8125rem; max-width: 24rem;
+  overflow: hidden; text-overflow: ellipsis; }
+.data-grid tbody tr:hover td { background: var(--muted); }
+
+/* The header doubles as the sort control. A whole-header target, not a tiny icon. */
+.col-sort {
+  display: flex; align-items: center; gap: 0.375rem; width: 100%;
+  background: none; border: 0; padding: 0 0 0.375rem; cursor: pointer;
+  font: inherit; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.32px;
+  color: var(--muted-foreground); text-align: left;
+}
+.col-sort:hover { color: var(--foreground); }
+
+.col-filter { display: flex; gap: 2px; }
+.col-filter select, .col-filter input {
+  background: var(--muted); color: var(--foreground);
+  border: 0; border-bottom: 1px solid var(--border);
+  padding: 3px 6px; font: inherit; font-size: 0.75rem; min-width: 0;
+}
+.col-filter select { flex: none; width: 4.5rem; }
+.col-filter input { flex: 1; min-width: 3rem; }
+.col-filter input:disabled { opacity: 0.4; }
+/* A column the dataset is *defined* by. Not a disabled input — there is nothing to
+   enable, so saying why beats greying out a control that could never work. */
+.col-pinned { font-size: 0.6875rem; letter-spacing: 0.32px; font-style: italic;
+  color: var(--muted-foreground); padding: 3px 0; white-space: nowrap; }
+.col-filter select:focus, .col-filter input:focus {
+  outline: 2px solid var(--primary); outline-offset: -2px;
+}
+
+.pager { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.75rem; }
+
+/* Run status. Semantic colour only — never the brand blue, which is reserved for
+   links and primary actions.
+
+   Each state takes a different shade per theme, because no single one clears WCAG
+   AA on both white and charcoal. Carbon's Red 60 reads 5.0:1 on white but only
+   3.6:1 on charcoal, so dark takes Red 50 (5.4:1); the same swap applies to green
+   and to the gold. The rule is: a fill needs a dark ink, a dark ground needs a
+   light ink, and "it looked fine" is not a measurement. */
+.label-success  { border-color: #198038; color: #198038; }
+.label-failed,
+.label-stale    { border-color: var(--carbon-error); color: var(--carbon-error); }
+.label-running  { border-color: var(--primary); color: var(--primary); }
+.label-quarantined { border-color: #8e6a00; color: #8e6a00; }
+.dark .label-success { border-color: var(--carbon-success); color: var(--carbon-success); }
+.dark .label-failed,
+.dark .label-stale { border-color: #fa4d56; color: #fa4d56; }  /* Red 50 */
+.dark .label-quarantined { border-color: var(--carbon-warning); color: var(--carbon-warning); }
+
+.backup-list { list-style: none; padding: 0; margin: 0;
+  border-top: 1px solid var(--border); }
+.backup-list li { display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border); }
+
+/* The YAML editor is the one place a monospace block is edited, not just read. */
+.admin-head + .chips { margin-bottom: 2rem; }
+
+/* --- honour the reader's motion preference ------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .will-reveal { opacity: 1; transform: none; }
+  .chart-line { stroke-dashoffset: 0; }
+  .chart-area { opacity: 0.08; }
+  .stage::after { transform: scaleX(1); }
+}
+
+/* --- responsive ----------------------------------------------------------
+   Carbon: 4-up -> 2-up at 1056px -> 1-up below 672px. Display type scales down
+   while keeping the weight-300 treatment. Tap targets hold 48px. */
+@media (max-width: 1056px) {
+  .pipeline { grid-template-columns: repeat(2, 1fr); }
+  .stat-band { grid-template-columns: repeat(2, 1fr); }
+  .hero-grid { grid-template-columns: 1fr; gap: 2.5rem; }
+  .finder { grid-template-columns: 1fr 1fr; }
+  .finder-search { grid-column: 1 / -1; }
+
+  /* One column, and the facts go FIRST. Sticky is pointless in a single column, and
+     a reader who has to scroll past the whole grid to learn the unit will not. */
+  .detail-layout { grid-template-columns: 1fr; gap: 1.5rem; }
+  .detail-aside { order: -1; }
+  .detail-sticky { position: static; max-height: none; overflow: visible;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+  .sibling-list { max-height: 11rem; }
+}
+
+@media (max-width: 672px) {
+  .hero { padding: 2.5rem 1.5rem 2rem; }
+  .hero-title { font-size: 2.25rem; letter-spacing: 0; }
+  .section { padding: 2.5rem 1.5rem; }
+  .section-head { font-size: 1.625rem; }
+  .stat-value, .page-title, .detail-title { font-size: 2rem; }
+  .pipeline, .stat-band { grid-template-columns: 1fr; }
+  .code-group { grid-template-columns: 1fr; gap: 1.5rem; }
+  .footer-inner { grid-template-columns: 1fr; }
+  .cta-inner { flex-direction: column; align-items: flex-start; }
+  .bar-row { grid-template-columns: minmax(90px, 1fr) 2fr auto; }
+  .finder { grid-template-columns: 1fr; }
+  .card-grid { grid-template-columns: 1fr; }
+  .dcard-foot { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
+  .schema-list { grid-template-columns: 1fr 1fr; }
+
+  /* Six nav links do not fit 390px. Rather than a JS drawer, the strip scrolls:
+     every link stays reachable, the page itself never scrolls sideways.
+     min-width:0 lets the flex item shrink below its content — without it the
+     nav sizes the bar and the whole document overflows. */
+  .bar { gap: 0.75rem; padding: 0 1rem; }
+  .topbar .badge { display: none; }
+  .nav {
+    min-width: 0; flex: 1 1 auto;
+    overflow-x: auto; scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav .btn { min-height: 48px; flex: none; }
+  .spacer { flex: none; }
+}

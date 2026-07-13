@@ -12,8 +12,14 @@ be debuggable at 3am, two years from now, by someone who did not write it.
                       ↓                                          ↓
               [Postgres catalog]  ← runs, files, errors → [DuckDB] → processed/*.parquet
                       ↓                                          ↓
-              [freshness alert]                          [Streamlit dashboard]
+              [freshness alert]                    [read-only replica] → [API] → [web/]
 ```
+
+Every source lands in one table, `lake.observations`. One row is one observation:
+at some `period`, the series named `series` had `value`, in some `unit` — as true
+of "Indonesia's GDP in 1998" as of "M2 in May 2026". So there is one table to
+query, one shape for the AI to learn, and one grid for the browser. See
+[docs/api.md](docs/api.md).
 
 ## The five things that make it survive contact with reality
 
@@ -158,11 +164,33 @@ undone at runtime — backed by a parser-level SQL guard. A TanStack Start front
 uv sync --extra api
 uv run lake serve build      # processed/*.parquet -> read-only replica
 uv run lake serve run        # API on 127.0.0.1:8000
-cd web && npm install && npm run dev   # frontend on :3000, proxies /api
+make web                     # frontend on :3000, proxies /api
 ```
 
 See [docs/api.md](docs/api.md). Bind everything to localhost; reach it over
-Tailscale or an authenticating proxy — the API has no auth of its own.
+Tailscale or an authenticating proxy — the public API has no auth of its own.
+
+## Admin panel
+
+`/admin` monitors the pipeline, edits `configs/sources.yaml`, and manages who can
+do those things. It is the only part of the system that writes, and the only part
+that has any concept of a user.
+
+```bash
+uv run alembic upgrade head                    # users, sessions, audit_log
+uv run lake admin create-user you@example.org  # prompts; there is no web sign-up
+```
+
+Argon2id passwords, database-backed sessions (so revoking one actually revokes
+it), and a rate-limited login. A config edit is validated before it is written,
+backed up before it overwrites, and audited with the full previous content — which
+is what stands in for the git commit a browser edit does not produce. It will not
+accept a literal secret, and it will not sync the catalog for you.
+
+This is a second lock on the same door, not a reason to open the first one: bind
+to localhost and stay behind Tailscale or a proxy regardless.
+
+See [docs/admin.md](docs/admin.md).
 
 ## Roadmap
 
